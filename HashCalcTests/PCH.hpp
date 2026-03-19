@@ -2,4 +2,4 @@
 
 #include "CppUnitTest.h"
 
-#include "../HashCalc/PCH.hpp"
+#include "../HashCalcLib/PCH.hpp"

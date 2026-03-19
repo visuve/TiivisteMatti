@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.32112.339
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11612.150 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{BA33CAF0-D18B-4F28-B943-BE34C2CBB594}"
 	ProjectSection(SolutionItems) = preProject
@@ -14,7 +14,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		ReadMe.md = ReadMe.md
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalc", "HashCalc\HashCalc.vcxproj", "{2C3F2A47-36E2-4945-957E-A8F74F6A9114}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcLib", "HashCalcLib\HashCalcLib.vcxproj", "{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcCLI", "HashCalcCLI\HashCalcCLI.vcxproj", "{BFD73787-16E7-4774-B669-0DD266F647EB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcGUI", "HashCalcGUI\HashCalcGUI.vcxproj", "{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcTests", "HashCalcTests\HashCalcTests.vcxproj", "{FEA5E26D-9B4B-4924-816F-5FBD2C338851}"
 EndProject
@@ -26,14 +30,30 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Debug|x64.ActiveCfg = Debug|x64
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Debug|x64.Build.0 = Debug|x64
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Debug|x86.ActiveCfg = Debug|Win32
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Debug|x86.Build.0 = Debug|Win32
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Release|x64.ActiveCfg = Release|x64
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Release|x64.Build.0 = Release|x64
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Release|x86.ActiveCfg = Release|Win32
-		{2C3F2A47-36E2-4945-957E-A8F74F6A9114}.Release|x86.Build.0 = Release|Win32
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Debug|x64.ActiveCfg = Debug|x64
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Debug|x64.Build.0 = Debug|x64
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Debug|x86.ActiveCfg = Debug|Win32
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Debug|x86.Build.0 = Debug|Win32
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Release|x64.ActiveCfg = Release|x64
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Release|x64.Build.0 = Release|x64
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Release|x86.ActiveCfg = Release|Win32
+		{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}.Release|x86.Build.0 = Release|Win32
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Debug|x64.ActiveCfg = Debug|x64
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Debug|x64.Build.0 = Debug|x64
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Debug|x86.ActiveCfg = Debug|Win32
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Debug|x86.Build.0 = Debug|Win32
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Release|x64.ActiveCfg = Release|x64
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Release|x64.Build.0 = Release|x64
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Release|x86.ActiveCfg = Release|Win32
+		{BFD73787-16E7-4774-B669-0DD266F647EB}.Release|x86.Build.0 = Release|Win32
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Debug|x64.ActiveCfg = Debug|x64
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Debug|x64.Build.0 = Debug|x64
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Debug|x86.ActiveCfg = Debug|Win32
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Debug|x86.Build.0 = Debug|Win32
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Release|x64.ActiveCfg = Release|x64
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Release|x64.Build.0 = Release|x64
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Release|x86.ActiveCfg = Release|Win32
+		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}.Release|x86.Build.0 = Release|Win32
 		{FEA5E26D-9B4B-4924-816F-5FBD2C338851}.Debug|x64.ActiveCfg = Debug|x64
 		{FEA5E26D-9B4B-4924-816F-5FBD2C338851}.Debug|x64.Build.0 = Debug|x64
 		{FEA5E26D-9B4B-4924-816F-5FBD2C338851}.Debug|x86.ActiveCfg = Debug|Win32

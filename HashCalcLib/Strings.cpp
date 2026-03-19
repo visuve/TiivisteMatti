@@ -1,7 +1,9 @@
+module;
 #include "PCH.hpp"
-#include "StringConversion.hpp"
 
-namespace StringConversion
+module HashLib;
+
+namespace HashLib::Strings
 {
 	std::string ToUtf8(std::wstring_view unicode)
 	{

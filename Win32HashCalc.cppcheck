@@ -6,7 +6,9 @@
 	<check-unused-templates>true</check-unused-templates>
 	<max-ctu-depth>10</max-ctu-depth>
 	<paths>
-		<dir name="HashCalc"/>
+		<dir name="HashCalcLib"/>
+		<dir name="HashCalcCLI"/>
+		<dir name="HashCalcGUI"/>
 	</paths>
 	<libraries>
 		<library>windows</library>

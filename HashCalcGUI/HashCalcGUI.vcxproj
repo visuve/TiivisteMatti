@@ -1,30 +1,29 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{2c3f2a47-36e2-4945-957e-a8f74f6a9114}</ProjectGuid>
+    <ProjectGuid>{b64c2496-9366-4fc5-becd-d29ce2fc2c37}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(SolutionDir)HashCalc.props" />
   <ItemDefinitionGroup>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>bcrypt.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="StringConversion.hpp" />
-    <ClInclude Include="HashCalc.hpp" />
-    <ClInclude Include="HashCalcException.hpp" />
     <ClInclude Include="PCH.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="StringConversion.cpp" />
-    <ClCompile Include="HashCalc.cpp" />
-    <ClCompile Include="HashCalcException.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="PCH.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HashCalcLib\HashCalcLib.vcxproj">
+      <Project>{eaa89ad3-0c3b-4d65-a338-e04c2ef799ce}</Project>
+    </ProjectReference>
   </ItemGroup>
 </Project>

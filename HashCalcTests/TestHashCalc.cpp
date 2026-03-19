@@ -1,5 +1,6 @@
 #include "PCH.hpp"
-#include "HashCalc.hpp"
+
+import HashLib;
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -8,32 +9,32 @@ TEST_CLASS(HashCalcTests)
 public:
 	TEST_METHOD(StringChecksumSame)
 	{
-		Assert::AreEqual(L"a9046c73e00331af68917d3804f70655", HashCalc(BCRYPT_MD2_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"866437cb7a794bce2b727acc0362ee27", HashCalc(BCRYPT_MD4_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"5d41402abc4b2a76b9719d911017c592", HashCalc(BCRYPT_MD5_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", HashCalc(BCRYPT_SHA1_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", HashCalc(BCRYPT_SHA256_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"59e1748777448c69de6b800d7a33bbfb9ff1b463e44354c3553bcdb9c666fa90125a3c79f90397bdf5f6a13de828684f", HashCalc(BCRYPT_SHA384_ALGORITHM).CalculateChecksum(L"hello").c_str());
-		Assert::AreEqual(L"9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043", HashCalc(BCRYPT_SHA512_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"a9046c73e00331af68917d3804f70655", HashLib::Calculator(BCRYPT_MD2_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"866437cb7a794bce2b727acc0362ee27", HashLib::Calculator(BCRYPT_MD4_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"5d41402abc4b2a76b9719d911017c592", HashLib::Calculator(BCRYPT_MD5_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", HashLib::Calculator(BCRYPT_SHA1_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", HashLib::Calculator(BCRYPT_SHA256_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"59e1748777448c69de6b800d7a33bbfb9ff1b463e44354c3553bcdb9c666fa90125a3c79f90397bdf5f6a13de828684f", HashLib::Calculator(BCRYPT_SHA384_ALGORITHM).CalculateChecksum(L"hello").c_str());
+		Assert::AreEqual(L"9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043", HashLib::Calculator(BCRYPT_SHA512_ALGORITHM).CalculateChecksum(L"hello").c_str());
 	}
 
 	TEST_METHOD(StringChecksumAlternating)
 	{
-		Assert::AreEqual(L"80a4442c57b9ae254e262ba19c1c832c", HashCalc(BCRYPT_MD2_ALGORITHM).CalculateChecksum(L"hydrogen").c_str());
-		Assert::AreEqual(L"61bd12ec5d9d13a2956d8e0a33be5bdd", HashCalc(BCRYPT_MD4_ALGORITHM).CalculateChecksum(L"helium").c_str());
-		Assert::AreEqual(L"42cacb235328b80cd4548840e57f89b6", HashCalc(BCRYPT_MD5_ALGORITHM).CalculateChecksum(L"lithium").c_str());
-		Assert::AreEqual(L"bada19a17b86234ca21377e07317132fadfb853f", HashCalc(BCRYPT_SHA1_ALGORITHM).CalculateChecksum(L"beryllium").c_str());
-		Assert::AreEqual(L"25b049a5984206dd6fe6eca9c02b468677615a568855010013d4960873c86527", HashCalc(BCRYPT_SHA256_ALGORITHM).CalculateChecksum(L"boron").c_str());
-		Assert::AreEqual(L"c0df5e67ee6a34d2cee9f6c80d45c8e136ff363404027db863cc301acd4bf01aedfe8ea408dc3654bab4689db94f4585", HashCalc(BCRYPT_SHA384_ALGORITHM).CalculateChecksum(L"carbon").c_str());
-		Assert::AreEqual(L"44e75d435bf4e8c41552a61bc9df08baede971a4470ec79e99408f8a4644e393dc56f7d7a1001a075e763e8773a368ed5a960323f3ff050d0e7f1d4cd237549c", HashCalc(BCRYPT_SHA512_ALGORITHM).CalculateChecksum(L"nitrogen").c_str());
+		Assert::AreEqual(L"80a4442c57b9ae254e262ba19c1c832c", HashLib::Calculator(BCRYPT_MD2_ALGORITHM).CalculateChecksum(L"hydrogen").c_str());
+		Assert::AreEqual(L"61bd12ec5d9d13a2956d8e0a33be5bdd", HashLib::Calculator(BCRYPT_MD4_ALGORITHM).CalculateChecksum(L"helium").c_str());
+		Assert::AreEqual(L"42cacb235328b80cd4548840e57f89b6", HashLib::Calculator(BCRYPT_MD5_ALGORITHM).CalculateChecksum(L"lithium").c_str());
+		Assert::AreEqual(L"bada19a17b86234ca21377e07317132fadfb853f", HashLib::Calculator(BCRYPT_SHA1_ALGORITHM).CalculateChecksum(L"beryllium").c_str());
+		Assert::AreEqual(L"25b049a5984206dd6fe6eca9c02b468677615a568855010013d4960873c86527", HashLib::Calculator(BCRYPT_SHA256_ALGORITHM).CalculateChecksum(L"boron").c_str());
+		Assert::AreEqual(L"c0df5e67ee6a34d2cee9f6c80d45c8e136ff363404027db863cc301acd4bf01aedfe8ea408dc3654bab4689db94f4585", HashLib::Calculator(BCRYPT_SHA384_ALGORITHM).CalculateChecksum(L"carbon").c_str());
+		Assert::AreEqual(L"44e75d435bf4e8c41552a61bc9df08baede971a4470ec79e99408f8a4644e393dc56f7d7a1001a075e763e8773a368ed5a960323f3ff050d0e7f1d4cd237549c", HashLib::Calculator(BCRYPT_SHA512_ALGORITHM).CalculateChecksum(L"nitrogen").c_str());
 	}
 
 	TEST_METHOD(FileChecksum)
 	{
 		const std::filesystem::path path(L"..\\..\\..\\HashCalc.props");
 
-		Assert::AreEqual(L"603dded90b3ab5d679ac25c36c8eb9ea01d2fa4bac6ad2d06de7416c916ae169", HashCalc(BCRYPT_SHA256_ALGORITHM).CalculateChecksumFromFile(path).c_str());
-		Assert::AreEqual(L"29a7bcd3f8044aa420afcde4c2b4ba29cb41fd11", HashCalc(BCRYPT_SHA1_ALGORITHM).CalculateChecksumFromFile(path).c_str());
-		Assert::AreEqual(L"0bd3ae329d0c9841526f9cc57bbdfcc27664fb1377d1955d4d815eec1df88ab929e58f42ffcb3ba8cf3cfacd3b74ef04ac3af60a09211efb081c228c2b9ec0c3", HashCalc(BCRYPT_SHA512_ALGORITHM).CalculateChecksumFromFile(path).c_str());
+		Assert::AreEqual(L"97a2c31a73cb37560f12b3e97dce31b68c67108929caf7742b26e1127f71bd4d", HashLib::Calculator(BCRYPT_SHA256_ALGORITHM).CalculateChecksumFromFile(path).c_str());
+		Assert::AreEqual(L"44d3bb190f13affd39af1b972f33b9753b0cece3", HashLib::Calculator(BCRYPT_SHA1_ALGORITHM).CalculateChecksumFromFile(path).c_str());
+		Assert::AreEqual(L"ba3508eef87ee9214707b43724497503b4dce3582340dd8a6a36575c8da9b827d5f0168a3bbc72ce0ac2934b903dab7c915e54b7e7b3f50c2cc295cdd581e02a", HashLib::Calculator(BCRYPT_SHA512_ALGORITHM).CalculateChecksumFromFile(path).c_str());
 	}
 };
