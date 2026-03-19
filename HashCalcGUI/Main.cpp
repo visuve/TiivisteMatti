@@ -1,13 +1,23 @@
 #include "PCH.hpp"
 
-#define IDM_FILE_BROWSE 1
-#define IDM_FILE_EXIT   2
-#define IDM_HELP_ABOUT  3
-#define IDC_TREEVIEW    101
-#define IDC_STATUSBAR   102
-
 namespace HashCalcGUI
 {
+	namespace IDs
+	{
+		enum Command : WORD 
+		{
+			FileBrowse = 1001,
+			FileExit   = 1002,
+			HelpAbout  = 1003
+		};
+
+		enum Control : UINT_PTR 
+		{
+			TreeView  = 2001,
+			StatusBar = 2002
+		};
+	};
+
 	class MainWindow
 	{
 	public:
@@ -18,6 +28,7 @@ namespace HashCalcGUI
 			windowClass.lpfnWndProc = StaticWndProc;
 			windowClass.hInstance = instance;
 			windowClass.lpszClassName = className;
+			windowClass.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
 			windowClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
 			windowClass.hbrBackground = reinterpret_cast<HBRUSH>(static_cast<uintptr_t>(COLOR_WINDOW + 1));
 
@@ -42,7 +53,9 @@ namespace HashCalcGUI
 				return false;
 			}
 
-			return ShowWindow(_window, cmdShow);;
+			ShowWindow(_window, cmdShow);
+
+			return true;
 		}
 
 		int Run()
@@ -118,7 +131,7 @@ namespace HashCalcGUI
 		{
 			_treeView = CreateWindowExW(WS_EX_CLIENTEDGE, WC_TREEVIEWW, L"",
 				WS_CHILD | WS_VISIBLE | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
-				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(static_cast<uintptr_t>(IDC_TREEVIEW)), GetModuleHandle(nullptr), nullptr);
+				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(IDs::TreeView), GetModuleHandle(nullptr), nullptr);
 
 			SetWindowTheme(_treeView, L"Explorer", nullptr);
 
@@ -128,7 +141,7 @@ namespace HashCalcGUI
 
 			_statusBar = CreateWindowExW(0, STATUSCLASSNAMEW, L"Ready",
 				WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
-				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(static_cast<uintptr_t>(IDC_STATUSBAR)), GetModuleHandle(nullptr), nullptr);
+				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(IDs::StatusBar), GetModuleHandle(nullptr), nullptr);
 
 			HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
 			SendMessageW(_treeView, WM_SETFONT, reinterpret_cast<WPARAM>(font), MAKELPARAM(FALSE, 0));
@@ -138,11 +151,11 @@ namespace HashCalcGUI
 			HMENU fileMenu = CreatePopupMenu();
 			HMENU helpMenu = CreatePopupMenu();
 
-			AppendMenuW(fileMenu, MF_STRING, IDM_FILE_BROWSE, L"Browse");
+			AppendMenuW(fileMenu, MF_STRING, IDs::FileBrowse, L"Browse");
 			AppendMenuW(fileMenu, MF_SEPARATOR, 0, nullptr);
-			AppendMenuW(fileMenu, MF_STRING, IDM_FILE_EXIT, L"Exit");
+			AppendMenuW(fileMenu, MF_STRING, IDs::FileExit, L"Exit");
 
-			AppendMenuW(helpMenu, MF_STRING, IDM_HELP_ABOUT, L"About");
+			AppendMenuW(helpMenu, MF_STRING, IDs::HelpAbout, L"About");
 
 			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), L"File");
 			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(helpMenu), L"Help");
@@ -168,14 +181,14 @@ namespace HashCalcGUI
 		{
 			switch (id)
 			{
-			case IDM_FILE_BROWSE:
+			case IDs::FileBrowse:
 				HandleBrowse();
 				break;
-			case IDM_FILE_EXIT:
+			case IDs::FileExit:
 				SendMessageW(_window, WM_CLOSE, 0, 0);
 				break;
-			case IDM_HELP_ABOUT:
-				MessageBoxW(_window, L"Hash Calculator v1.0\n(c) 2026", L"About", MB_OK | MB_ICONINFORMATION);
+			case IDs::HelpAbout:
+				MessageBoxW(_window, L"Hash Calculator v1.0\n\nCopyright (c) visuve 2026", L"About", MB_OK | MB_ICONINFORMATION);
 				break;
 			}
 		}
@@ -357,13 +370,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 	INITCOMMONCONTROLSEX initCtrl = { 0 };
 	initCtrl.dwSize = sizeof(INITCOMMONCONTROLSEX);
 	initCtrl.dwICC = ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES;
-	InitCommonControlsEx(&initCtrl);
+
+	if (!InitCommonControlsEx(&initCtrl))
+	{
+		return ERROR_CAN_NOT_COMPLETE;
+	}
 
 	HashCalcGUI::MainWindow app;
 
 	if (!app.Create(instance, cmdShow))
 	{
-		return 0;
+		return ERROR_INVALID_WINDOW_HANDLE;
 	}
 
 	return app.Run();

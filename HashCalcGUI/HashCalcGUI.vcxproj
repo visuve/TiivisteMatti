@@ -22,6 +22,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="HashCalcGUI.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\HashCalcLib\HashCalcLib.vcxproj">
       <Project>{eaa89ad3-0c3b-4d65-a338-e04c2ef799ce}</Project>
     </ProjectReference>
