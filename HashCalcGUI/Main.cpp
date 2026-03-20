@@ -32,8 +32,10 @@ namespace HashCalcGUI
 		struct HashTaskData
 		{
 			HWND Window;
+			HTREEITEM FileNode;
+			HTREEITEM ProgressNode;
 			std::filesystem::path FilePath;
-			std::map<std::wstring, HTREEITEM> Items;
+			std::vector<std::wstring> Algorithms;
 			std::map<std::wstring, std::wstring> Results;
 			std::stop_token StopToken;
 		};
@@ -146,34 +148,37 @@ namespace HashCalcGUI
 			{
 				std::unique_ptr<HashTaskData> data(reinterpret_cast<HashTaskData*>(lparam));
 
-				for (const auto& [algo, item] : data->Items)
-				{
-					TVITEMW tvi = { 0 };
-					tvi.mask = TVIF_TEXT;
-					tvi.hItem = item;
-					tvi.pszText = data->Results[algo].data();
+				// Remove the single progress node
+				SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(data->ProgressNode));
 
-					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+				// Insert the calculated hashes
+				for (const std::wstring& algo : data->Algorithms)
+				{
+					TVINSERTSTRUCTW is = { 0 };
+					is.hParent = data->FileNode;
+					is.hInsertAfter = TVI_LAST;
+					is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+					is.item.iImage = I_IMAGENONE;
+					is.item.iSelectedImage = I_IMAGENONE;
+					is.item.pszText = data->Results[algo].data();
+
+					SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
 				}
 				break;
 			}
 			case IDs::Message::UpdateProgress:
 			{
-				HashTaskData* data = reinterpret_cast<HashTaskData*>(wparam);
+				auto data = reinterpret_cast<HashTaskData*>(wparam);
 				float percentage = std::bit_cast<float>(static_cast<uint32_t>(lparam));
 
-				for (const auto& [algo, item] : data->Items)
-				{
-					std::wstring text = std::format(L"{}: {:.2f}%", algo, percentage);
+				std::wstring text = std::format(L"Calculating... {:.2f}%", percentage);
 
-					TVITEMW tvi = { 0 };
-					tvi.mask = TVIF_TEXT;
-					tvi.hItem = item;
-					tvi.pszText = text.data();
+				TVITEMW tvi = { 0 };
+				tvi.mask = TVIF_TEXT;
+				tvi.hItem = data->ProgressNode;
+				tvi.pszText = text.data();
 
-					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
-				}
-
+				SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
 				break;
 			}
 			default:
@@ -196,9 +201,19 @@ namespace HashCalcGUI
 			HIMAGELIST imageList = reinterpret_cast<HIMAGELIST>(SHGetFileInfoW(L"C:\\", 0, &fileInfo, sizeof(fileInfo), SHGFI_SYSICONINDEX | SHGFI_SMALLICON));
 			SendMessageW(_treeView, TVM_SETIMAGELIST, TVSIL_NORMAL, reinterpret_cast<LPARAM>(imageList));
 
-			_statusBar = CreateWindowExW(0, STATUSCLASSNAMEW, L"Ready",
+			_statusBar = CreateWindowExW(
+				0,
+				STATUSCLASSNAMEW,
+				L"Ready. Drag & drop files or folders to initiate hash calculation!",
 				WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
-				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(IDs::StatusBar), GetModuleHandle(nullptr), nullptr);
+				0,
+				0,
+				0,
+				0,
+				_window,
+				reinterpret_cast<HMENU>(IDs::StatusBar),
+				GetModuleHandle(nullptr),
+				nullptr);
 
 			HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
 			SendMessageW(_treeView, WM_SETFONT, reinterpret_cast<WPARAM>(font), MAKELPARAM(FALSE, 0));
@@ -289,20 +304,14 @@ namespace HashCalcGUI
 
 			try
 			{
-				std::vector<std::wstring> algorithms;
-				for (const auto& [algo, item] : data->Items)
-				{
-					algorithms.push_back(algo);
-				}
-
 				const auto progressCallback = [rawData = data.get()](float percentage)
 				{
-						uint32_t bits = std::bit_cast<uint32_t>(percentage);
+					uint32_t bits = std::bit_cast<uint32_t>(percentage);
 					PostMessageW(rawData->Window, IDs::Message::UpdateProgress, reinterpret_cast<WPARAM>(rawData), static_cast<LPARAM>(bits));
 				};
 
-				HashLib::Calculator calc(algorithms);
-				std::map<std::wstring, std::wstring> hashes = 
+				HashLib::Calculator calc(data->Algorithms);
+				std::map<std::wstring, std::wstring> hashes =
 					calc.CalculateChecksumsFromFile(
 						data->FilePath,
 						data->StopToken,
@@ -317,7 +326,7 @@ namespace HashCalcGUI
 			{
 				std::wstring error = HashLib::Strings::ToWide(e.what());
 
-				for (const auto& [algo, item] : data->Items)
+				for (const auto& algo : data->Algorithms)
 				{
 					data->Results[algo] = std::format(L"{}: Error: {}", algo, error);
 				}
@@ -383,23 +392,27 @@ namespace HashCalcGUI
 
 			if (fileItem != nullptr)
 			{
-				HashTaskData* taskData = new HashTaskData{ _window, filePath, {}, {}, _stopSource.get_token() };
+				auto taskData = new HashTaskData{
+					_window,
+					fileItem,
+					nullptr,
+					filePath,
+					{L"MD5", L"SHA1", L"SHA256"},
+					{},
+					_stopSource.get_token()
+				};
 
-				for (const std::wstring& algo : { L"MD5", L"SHA1", L"SHA256" })
-				{
-					TVINSERTSTRUCTW insertStructHash = { 0 };
-					insertStructHash.hParent = fileItem;
-					insertStructHash.hInsertAfter = TVI_LAST;
-					insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-					insertStructHash.item.iImage = I_IMAGENONE;
-					insertStructHash.item.iSelectedImage = I_IMAGENONE;
+				TVINSERTSTRUCTW insertStructHash = { 0 };
+				insertStructHash.hParent = fileItem;
+				insertStructHash.hInsertAfter = TVI_LAST;
+				insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+				insertStructHash.item.iImage = I_IMAGENONE;
+				insertStructHash.item.iSelectedImage = I_IMAGENONE;
 
-					std::wstring pendingText = algo + L": <Pending Calculation>";
-					insertStructHash.item.pszText = pendingText.data();
-					HTREEITEM hashItem = InsertTreeItem(insertStructHash);
+				std::wstring pendingText = L"Calculating... 0.00%";
+				insertStructHash.item.pszText = pendingText.data();
 
-					taskData->Items[algo] = hashItem;
-				}
+				taskData->ProgressNode = InsertTreeItem(insertStructHash);
 
 				if (!TrySubmitThreadpoolCallback(HashWorker, taskData, &_threadPool))
 				{
