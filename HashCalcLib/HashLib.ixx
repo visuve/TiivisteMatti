@@ -49,8 +49,9 @@ export namespace HashLib
 
 export namespace HashLib::Strings
 {
-	std::string ToUtf8(std::wstring_view unicode);
-	std::vector<uint8_t> ToUtf8ByteArray(std::wstring_view unicode);
+	std::string ToNarrow(std::wstring_view data, uint32_t codepage = CP_ACP);
+	std::wstring ToWide(std::string_view data, uint32_t codepage = CP_ACP);
+	std::vector<uint8_t> ToByteArray(std::wstring_view data, uint32_t codepage = CP_ACP);
 
 	template<typename T, typename C>
 	std::basic_string<C> Join(

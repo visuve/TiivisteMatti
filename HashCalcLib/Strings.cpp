@@ -5,15 +5,15 @@ module HashLib;
 
 namespace HashLib::Strings
 {
-	std::string ToUtf8(std::wstring_view unicode)
+	std::string ToNarrow(std::wstring_view input, uint32_t codepage)
 	{
-		std::string utf8;
+		std::string output;
 
 		int required = WideCharToMultiByte(
-			CP_UTF8,
+			codepage,
 			0,
-			unicode.data(),
-			static_cast<int>(unicode.length()),
+			input.data(),
+			static_cast<int>(input.length()),
 			nullptr,
 			0,
 			nullptr,
@@ -21,27 +21,58 @@ namespace HashLib::Strings
 
 		if (required > 0)
 		{
-			utf8.resize(static_cast<size_t>(required));
+			output.resize(static_cast<size_t>(required));
 
 			required = WideCharToMultiByte(
-				CP_UTF8,
+				codepage,
 				0,
-				unicode.data(),
-				static_cast<int>(unicode.length()),
-				utf8.data(),
+				input.data(),
+				static_cast<int>(input.length()),
+				output.data(),
 				required,
 				nullptr,
 				nullptr);
 
-			_ASSERT(utf8.size() == static_cast<size_t>(required));
+			_ASSERT(output.size() == static_cast<size_t>(required));
 		}
 
-		return utf8;
+		return output;
 	}
 
-	std::vector<uint8_t> ToUtf8ByteArray(std::wstring_view unicode)
+	std::wstring ToWide(std::string_view input, uint32_t codepage)
 	{
-		const std::string utf8 = ToUtf8(unicode);
+		std::wstring output;
+
+		int required = MultiByteToWideChar(
+			codepage,
+			0,
+			input.data(),
+			static_cast<int>(input.length()),
+			nullptr,
+			0);
+
+		if (required > 0)
+		{
+			output.resize(static_cast<size_t>(required));
+
+			required = MultiByteToWideChar(
+				codepage,
+				0,
+				input.data(),
+				static_cast<int>(input.length()),
+				output.data(),
+				required);
+
+			_ASSERT(output.size() == static_cast<size_t>(required));
+		}
+
+		return output;
+	}
+
+	std::vector<uint8_t> ToByteArray(std::wstring_view data, uint32_t codepage)
+	{
+		const std::string utf8 = ToNarrow(data, codepage);
+
 		std::vector<uint8_t> bytes(utf8.size());
 
 		std::ranges::transform(utf8, bytes.begin(), [](char c)

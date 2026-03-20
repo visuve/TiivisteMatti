@@ -21,7 +21,7 @@ namespace HashLib
 		if (status != 0 || object == 0 || bytesWritten != sizeof(DWORD))
 		{
 			const std::string message =
-				"BCryptGetProperty(" + Strings::ToUtf8(property) + ')';
+				"BCryptGetProperty(" + Strings::ToNarrow(property) + ')';
 			throw std::exception(message.c_str(), status);
 		}
 
@@ -162,7 +162,7 @@ namespace HashLib
 
 	std::wstring Calculator::CalculateChecksum(std::wstring_view data)
 	{
-		std::vector<uint8_t> ba = Strings::ToUtf8ByteArray(data);
+		std::vector<uint8_t> ba = Strings::ToByteArray(data, CP_UTF8);
 		return CalculateChecksum(ba);
 	}
 

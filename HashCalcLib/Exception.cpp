@@ -37,6 +37,6 @@ namespace HashLib
 		}
 
 
-		return Strings::ToUtf8(message);
+		return Strings::ToNarrow(message);
 	}
 }

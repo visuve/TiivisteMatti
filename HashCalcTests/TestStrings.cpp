@@ -7,13 +7,31 @@ TEST_CLASS(StringConversionTests)
 {
 public:
 		
-	TEST_METHOD(ToUtf8)
+	TEST_METHOD(ToNarrow)
 	{
-		const std::vector<uint8_t> result = HashLib::Strings::ToUtf8ByteArray(L"ABC");
+		{
+			const std::string result = HashLib::Strings::ToNarrow(L"ABC");
+			Assert::AreEqual(result.size(), size_t(3));
+			Assert::AreEqual(result[0], 'A');
+			Assert::AreEqual(result[1], 'B');
+			Assert::AreEqual(result[2], 'C');
+		}
+		{
+			const std::vector<uint8_t> result = HashLib::Strings::ToByteArray(L"ABC");
+			Assert::AreEqual(result.size(), size_t(3));
+			Assert::AreEqual(result[0], uint8_t(0x41));
+			Assert::AreEqual(result[1], uint8_t(0x42));
+			Assert::AreEqual(result[2], uint8_t(0x43));
+		}
+	}
+
+	TEST_METHOD(ToWide)
+	{
+		const std::wstring result = HashLib::Strings::ToWide("ABC");
 		Assert::AreEqual(result.size(), size_t(3));
-		Assert::AreEqual(result[0], uint8_t(0x41));
-		Assert::AreEqual(result[1], uint8_t(0x42));
-		Assert::AreEqual(result[2], uint8_t(0x43));
+		Assert::AreEqual(result[0], L'A');
+		Assert::AreEqual(result[1], L'B');
+		Assert::AreEqual(result[2], L'C');
 	}
 
 	TEST_METHOD(Join)
@@ -25,7 +43,7 @@ public:
 
 	TEST_METHOD(Bytes)
 	{
-		auto result = HashLib::Strings::ToUtf8ByteArray(L"\xD83D\xDE18");
+		auto result = HashLib::Strings::ToByteArray(L"\xD83D\xDE18", CP_UTF8);
 		Assert::AreEqual(result.size(), size_t(4));
 		Assert::AreEqual(result[0], uint8_t(0xF0));
 		Assert::AreEqual(result[1], uint8_t(0x9F));
