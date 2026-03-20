@@ -53,37 +53,57 @@ export namespace HashLib::Strings
 	std::wstring ToWide(std::string_view data, uint32_t codepage = CP_ACP);
 	std::vector<uint8_t> ToByteArray(std::wstring_view data, uint32_t codepage = CP_ACP);
 
-	template<typename T, typename C>
+	template<std::ranges::input_range Range, typename C>
 	std::basic_string<C> Join(
-		const T& array,
+		const Range& range,
 		std::basic_string_view<C> separator,
 		std::basic_string_view<C> lastSeparator)
 	{
-		std::basic_string<C> joined;
+		std::basic_string<C> result;
 
-		for (size_t i = 0; i < array.size(); ++i)
+		auto n = std::ranges::distance(range);
+		decltype(n) i = 0;
+
+		for (const auto& elem : range)
 		{
-			joined += array[i];
+			result += elem;
 
-			if (i + 2 < array.size())
+			if (i + 2 < n)
 			{
-				joined += separator;
-				continue;
+				result += separator;
+			}
+			else if (i + 1 < n)
+			{
+				result += lastSeparator;
 			}
 
-			if (i + 1 < array.size())
-			{
-				joined += lastSeparator;
-				continue;
-			}
+			++i;
 		}
 
-		return joined;
+		return result;
+	}
+
+	template<typename C>
+	std::vector<std::basic_string<C>> Split(std::basic_string_view<C> text, C separator)
+	{
+		std::vector<std::basic_string<C>> result;
+
+		for (auto&& part : text | std::views::split(separator))
+		{
+			result.emplace_back(part.begin(), part.end());
+		}
+
+		return result;
 	}
 
 	template<typename T>
 	std::wstring Join(const T& array)
 	{
 		return Join<T, wchar_t>(array, L", ", L" & ");
+	}
+
+	std::vector<std::wstring> Split(std::wstring_view text, char separator = ',')
+	{
+		return Split<wchar_t>(text, separator);
 	}
 }

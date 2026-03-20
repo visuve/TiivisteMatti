@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <ranges>
 #include <span>
 #include <sstream>
 #include <stop_token>

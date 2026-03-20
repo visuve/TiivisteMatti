@@ -41,6 +41,21 @@ public:
 			HashLib::Strings::Join(elements).c_str(), L"hydrogen, helium, lithium & beryllium");
 	}
 
+	TEST_METHOD(Split)
+	{
+		std::wstring input = L"hydrogen,helium,lithium,beryllium";
+		std::vector<std::wstring> expected = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
+
+		auto result = HashLib::Strings::Split(input);
+
+		Assert::AreEqual(expected.size(), result.size());
+
+		for (size_t i = 0; i < expected.size(); ++i)
+		{
+			Assert::AreEqual(expected[i].c_str(), result[i].c_str());
+		}
+	}
+
 	TEST_METHOD(Bytes)
 	{
 		auto result = HashLib::Strings::ToByteArray(L"\xD83D\xDE18", CP_UTF8);
