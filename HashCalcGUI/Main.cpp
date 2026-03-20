@@ -35,6 +35,7 @@ namespace HashCalcGUI
 			std::filesystem::path FilePath;
 			std::wstring Algorithm;
 			std::wstring Result;
+			std::stop_token StopToken;
 		};
 
 		bool Create(HINSTANCE instance, int cmdShow)
@@ -93,6 +94,7 @@ namespace HashCalcGUI
 		HWND _statusBar = nullptr;
 		int _totalFiles = 0;
 		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
+		std::stop_source _stopSource;
 
 		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -135,6 +137,7 @@ namespace HashCalcGUI
 				OnDropFiles(reinterpret_cast<HDROP>(wparam));
 				break;
 			case WM_DESTROY:
+				_stopSource.request_stop();
 				PostQuitMessage(0);
 				break;
 			case IDs::Message::UpdateHash:
@@ -192,7 +195,7 @@ namespace HashCalcGUI
 			DragAcceptFiles(_window, TRUE);
 		}
 
-		void OnSize(LPARAM lparam)
+		void OnSize(LPARAM lparam) const
 		{
 			int width = LOWORD(lparam);
 			int height = HIWORD(lparam);
@@ -261,7 +264,7 @@ namespace HashCalcGUI
 			try
 			{
 				HashLib::Calculator calc(data->Algorithm);
-				std::wstring hashStr = calc.CalculateChecksumFromFile(data->FilePath);
+				std::wstring hashStr = calc.CalculateChecksumFromFile(data->FilePath, data->StopToken);
 				data->Result = std::format(L"{}: {}", data->Algorithm, hashStr);
 			}
 			catch (const std::exception& e)
@@ -277,7 +280,7 @@ namespace HashCalcGUI
 			return 0;
 		}
 
-		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is)
+		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const
 		{
 			LRESULT result = SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
 			return reinterpret_cast<HTREEITEM>(result);
@@ -296,7 +299,7 @@ namespace HashCalcGUI
 			insertStructHash.item.pszText = pendingText.data();
 			HTREEITEM hashItem = InsertTreeItem(insertStructHash);
 
-			HashTaskData* taskData = new HashTaskData{ _window, hashItem, filePath, algoName };
+			HashTaskData* taskData = new HashTaskData{ _window, hashItem, filePath, algoName, L"", _stopSource.get_token()};
 			QueueUserWorkItem(HashWorker, taskData, WT_EXECUTEDEFAULT);
 		}
 

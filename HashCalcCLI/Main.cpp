@@ -71,6 +71,19 @@ namespace HashCalcCLI
 		std::wcerr << L"Currently supported algorithms: " <<
 			HashLib::Strings::Join(SupportedAlgorithms) << std::endl;
 	}
+
+	std::stop_source StopSource;
+
+	BOOL WINAPI ConsoleHandler(DWORD ctrlType)
+	{
+		if (ctrlType == CTRL_CLOSE_EVENT)
+		{
+			StopSource.request_stop();
+			return TRUE;
+		}
+
+		return FALSE;
+	}
 }
 
 int wmain(int argc, wchar_t* argv[])
@@ -98,17 +111,19 @@ int wmain(int argc, wchar_t* argv[])
 		}
 	}
 
+	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+
 	try
 	{
 		HashLib::Calculator hashCalc(selectedAlgorithm);
 
 		if (IsReadableFile(argv[1]))
 		{
-			std::wcout << hashCalc.CalculateChecksumFromFile(std::filesystem::path(argv[1]));
+			std::wcout << hashCalc.CalculateChecksumFromFile(argv[1], StopSource.get_token());
 		}
 		else if (IsReadableFolder(argv[1]))
 		{
-			for (const auto& [path, hash] : hashCalc.CalculateChecksumFromFolder(std::filesystem::path(argv[1])))
+			for (const auto& [path, hash] : hashCalc.CalculateChecksumFromFolder(argv[1], StopSource.get_token()))
 			{
 				std::wcout << path << L":\t" << hash << std::endl;
 			}

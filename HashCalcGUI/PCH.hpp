@@ -13,5 +13,6 @@
 
 #include <filesystem>
 #include <vector>
+#include <stop_token>
 #include <string>
 #include <map>

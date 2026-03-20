@@ -39,8 +39,8 @@ export namespace HashLib
 
 		std::wstring CalculateChecksum(std::span<uint8_t> data);
 		std::wstring CalculateChecksum(std::wstring_view data);
-		std::wstring CalculateChecksumFromFile(const std::filesystem::path& path);
-		std::map<std::filesystem::path, std::wstring> CalculateChecksumFromFolder(const std::filesystem::path& path);
+		std::wstring CalculateChecksumFromFile(const std::filesystem::path& path, std::stop_token stopToken);
+		std::map<std::filesystem::path, std::wstring> CalculateChecksumFromFolder(const std::filesystem::path& path, std::stop_token stopToken);
 
 	private:
 		BCRYPT_ALG_HANDLE _algorithmHandle = nullptr;

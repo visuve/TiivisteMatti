@@ -32,9 +32,10 @@ public:
 	TEST_METHOD(FileChecksum)
 	{
 		const std::filesystem::path path(L"..\\..\\..\\HashCalc.props");
+		std::stop_source source;
 
-		Assert::AreEqual(L"b745f90ecd2ef998b3f1bb200dd38f9aeb9957a0f316225dabcd4246ff0b5de8", HashLib::Calculator(BCRYPT_SHA256_ALGORITHM).CalculateChecksumFromFile(path).c_str());
-		Assert::AreEqual(L"d5bae55d40c9897b2795623197e33a2822a2aba4", HashLib::Calculator(BCRYPT_SHA1_ALGORITHM).CalculateChecksumFromFile(path).c_str());
-		Assert::AreEqual(L"7e63fbb9cbeef24e72be090819bc3aaab8aa3faf8c5a771312d465f1c8a407e6efa5bef7835d3329250459fdef37ecb25622a17c4cfd70480c0f61a578f3df61", HashLib::Calculator(BCRYPT_SHA512_ALGORITHM).CalculateChecksumFromFile(path).c_str());
+		Assert::AreEqual(L"b745f90ecd2ef998b3f1bb200dd38f9aeb9957a0f316225dabcd4246ff0b5de8", HashLib::Calculator(BCRYPT_SHA256_ALGORITHM).CalculateChecksumFromFile(path, source.get_token()).c_str());
+		Assert::AreEqual(L"d5bae55d40c9897b2795623197e33a2822a2aba4", HashLib::Calculator(BCRYPT_SHA1_ALGORITHM).CalculateChecksumFromFile(path, source.get_token()).c_str());
+		Assert::AreEqual(L"7e63fbb9cbeef24e72be090819bc3aaab8aa3faf8c5a771312d465f1c8a407e6efa5bef7835d3329250459fdef37ecb25622a17c4cfd70480c0f61a578f3df61", HashLib::Calculator(BCRYPT_SHA512_ALGORITHM).CalculateChecksumFromFile(path, source.get_token()).c_str());
 	}
 };

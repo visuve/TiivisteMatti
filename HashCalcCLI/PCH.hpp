@@ -7,9 +7,10 @@
 #include <Windows.h>
 #include <bcrypt.h>
 
-#include <iostream>
-#include <filesystem>
-#include <string>
-#include <array>
 #include <algorithm>
+#include <array>
 #include <exception>
+#include <filesystem>
+#include <iostream>
+#include <stop_token>
+#include <string>

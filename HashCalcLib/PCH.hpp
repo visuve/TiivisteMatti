@@ -13,5 +13,6 @@
 #include <map>
 #include <span>
 #include <sstream>
+#include <stop_token>
 #include <string_view>
 #include <fstream>

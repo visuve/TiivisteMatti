@@ -166,7 +166,7 @@ namespace HashLib
 		return CalculateChecksum(ba);
 	}
 
-	std::wstring Calculator::CalculateChecksumFromFile(const std::filesystem::path & path)
+	std::wstring Calculator::CalculateChecksumFromFile(const std::filesystem::path& path, std::stop_token stopToken)
 	{
 		std::basic_ifstream<uint8_t> file(path, std::ios::in | std::ios::binary);
 
@@ -186,6 +186,11 @@ namespace HashLib
 
 		while (bytesLeft && file)
 		{
+			if (stopToken.stop_requested())
+			{
+				throw std::runtime_error("Cancelled");
+			}
+
 			if (buffer.size() > bytesLeft)
 			{
 				buffer.resize(static_cast<size_t>(bytesLeft));
@@ -202,7 +207,7 @@ namespace HashLib
 		return hash.ToString();
 	}
 
-	std::map<std::filesystem::path, std::wstring> Calculator::CalculateChecksumFromFolder(const std::filesystem::path & path)
+	std::map<std::filesystem::path, std::wstring> Calculator::CalculateChecksumFromFolder(const std::filesystem::path& path, std::stop_token stopToken)
 	{
 		std::map<std::filesystem::path, std::wstring> result;
 
@@ -215,7 +220,7 @@ namespace HashLib
 				continue;
 			}
 
-			result.emplace(entry.path(), CalculateChecksumFromFile(entry.path()));
+			result.emplace(entry.path(), CalculateChecksumFromFile(entry.path(), stopToken));
 		}
 
 		return result;
