@@ -4,25 +4,25 @@ import HashLib;
 
 namespace HashCalcCLI
 {
-	bool CheckPath(const std::filesystem::path& path, std::filesystem::file_type expected)
+	bool CheckPath(const std::filesystem::path& path, std::filesystem::file_type expectedType)
 	{
 		try
 		{
 			const std::filesystem::file_status status = std::filesystem::status(path);
 
-			if (status.type() != expected)
+			if (status.type() != expectedType)
 			{
 				return false;
 			}
 
 			const std::filesystem::perms permissions = status.permissions();
 
-			const std::filesystem::perms expected =
+			const std::filesystem::perms expectedPermissions =
 				std::filesystem::perms::owner_read |
 				std::filesystem::perms::group_read |
 				std::filesystem::perms::others_read;
 
-			return (permissions & expected) != std::filesystem::perms::none;
+			return (permissions & expectedPermissions) != std::filesystem::perms::none;
 		}
 		catch (const std::exception& e)
 		{
