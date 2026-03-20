@@ -99,6 +99,8 @@ namespace HashCalcGUI
 		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
 		std::stop_source _stopSource;
 		TP_CALLBACK_ENVIRON _threadPool;
+		std::optional<int> _folderIconIndex;
+		std::map<std::wstring, int> _iconCache;
 
 		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -289,13 +291,54 @@ namespace HashCalcGUI
 
 		int GetSystemIconIndex(const std::filesystem::path& path, bool isFolder)
 		{
-			SHFILEINFOW fileInfo = { 0 };
-			DWORD attributes = isFolder ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+			if (isFolder)
+			{
+				if (!_folderIconIndex.has_value())
+				{
+					SHFILEINFOW fileInfo = { 0 };
 
-			SHGetFileInfoW(path.c_str(), attributes, &fileInfo, sizeof(fileInfo),
-				SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON);
+					SHGetFileInfoW(
+						L"doesnotactuallyexist",
+						FILE_ATTRIBUTE_DIRECTORY,
+						&fileInfo,
+						sizeof(fileInfo),
+						SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON);
 
-			return fileInfo.iIcon;
+					_folderIconIndex = fileInfo.iIcon;
+				}
+
+				return _folderIconIndex.value();
+			}
+			else
+			{
+				std::wstring ext = path.extension().wstring();
+
+				for (wchar_t& c : ext)
+				{
+					c = std::towlower(c);
+				}
+
+				const auto it = _iconCache.find(ext);
+
+				if (it != _iconCache.cend())
+				{
+					return it->second;
+				}
+
+				SHFILEINFOW fileInfo = { 0 };
+				std::wstring dummyName = L"doesnotactuallyexist" + ext;
+
+				SHGetFileInfoW(
+					dummyName.c_str(),
+					FILE_ATTRIBUTE_NORMAL,
+					&fileInfo,
+					sizeof(fileInfo),
+					SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON);
+
+				_iconCache[ext] = fileInfo.iIcon;
+
+				return fileInfo.iIcon;
+			}
 		}
 
 		static VOID CALLBACK HashWorker(PTP_CALLBACK_INSTANCE, PVOID context)

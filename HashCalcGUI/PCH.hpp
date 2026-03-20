@@ -11,6 +11,7 @@
 #include <shellapi.h>
 #include <uxtheme.h>
 
+#include <cwctype>
 #include <filesystem>
 #include <vector>
 #include <stop_token>
