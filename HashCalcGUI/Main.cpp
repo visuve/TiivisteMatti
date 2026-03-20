@@ -1,17 +1,24 @@
 #include "PCH.hpp"
 
+import HashLib;
+
 namespace HashCalcGUI
 {
 	namespace IDs
 	{
-		enum Command : WORD 
+		enum Message : UINT
+		{
+			UpdateHash = WM_APP + 1
+		};
+
+		enum Command : WORD
 		{
 			FileBrowse = 1001,
 			FileExit   = 1002,
 			HelpAbout  = 1003
 		};
 
-		enum Control : UINT_PTR 
+		enum Control : UINT_PTR
 		{
 			TreeView  = 2001,
 			StatusBar = 2002
@@ -21,6 +28,15 @@ namespace HashCalcGUI
 	class MainWindow
 	{
 	public:
+		struct HashTaskData
+		{
+			HWND Window;
+			HTREEITEM Item;
+			std::filesystem::path FilePath;
+			std::wstring Algorithm;
+			std::wstring Result;
+		};
+
 		bool Create(HINSTANCE instance, int cmdShow)
 		{
 			const wchar_t className[] = L"HashCalcWindow";
@@ -121,6 +137,18 @@ namespace HashCalcGUI
 			case WM_DESTROY:
 				PostQuitMessage(0);
 				break;
+			case IDs::Message::UpdateHash:
+			{
+				std::unique_ptr<HashTaskData> data(reinterpret_cast<HashTaskData*>(lparam));
+
+				TVITEMW tvi = { 0 };
+				tvi.mask = TVIF_TEXT;
+				tvi.hItem = data->Item;
+				tvi.pszText = data->Result.data();
+
+				SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+				break;
+			}
 			default:
 				return DefWindowProcW(_window, message, wparam, lparam);
 			}
@@ -226,6 +254,52 @@ namespace HashCalcGUI
 			return fileInfo.iIcon;
 		}
 
+		static DWORD WINAPI HashWorker(LPVOID param)
+		{
+			std::unique_ptr<HashTaskData> data(static_cast<HashTaskData*>(param));
+
+			try
+			{
+				HashLib::Calculator calc(data->Algorithm);
+				std::wstring hashStr = calc.CalculateChecksumFromFile(data->FilePath);
+				data->Result = std::format(L"{}: {}", data->Algorithm, hashStr);
+			}
+			catch (const std::exception& e)
+			{
+				data->Result = std::format(L"{}: Error: {}", data->Algorithm, HashLib::Strings::ToWide(e.what()));
+			}
+
+			if (PostMessageW(data->Window, IDs::Message::UpdateHash, 0, reinterpret_cast<LPARAM>(data.get())))
+			{
+				data.release();
+			}
+
+			return 0;
+		}
+
+		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is)
+		{
+			LRESULT result = SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
+			return reinterpret_cast<HTREEITEM>(result);
+		}
+
+		void AddPendingNodeAndQueue(HTREEITEM fileItem, const std::filesystem::path& filePath, const std::wstring& algoName)
+		{
+			TVINSERTSTRUCTW insertStructHash = { 0 };
+			insertStructHash.hParent = fileItem;
+			insertStructHash.hInsertAfter = TVI_LAST;
+			insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+			insertStructHash.item.iImage = I_IMAGENONE;
+			insertStructHash.item.iSelectedImage = I_IMAGENONE;
+
+			std::wstring pendingText = algoName + L": <Pending Calculation>";
+			insertStructHash.item.pszText = pendingText.data();
+			HTREEITEM hashItem = InsertTreeItem(insertStructHash);
+
+			HashTaskData* taskData = new HashTaskData{ _window, hashItem, filePath, algoName };
+			QueueUserWorkItem(HashWorker, taskData, WT_EXECUTEDEFAULT);
+		}
+
 		void AddFileToTree(const std::filesystem::path& filePath)
 		{
 			if (!std::filesystem::is_regular_file(filePath))
@@ -248,7 +322,7 @@ namespace HashCalcGUI
 				insertStructFolder.item.iImage = folderIcon;
 				insertStructFolder.item.iSelectedImage = folderIcon;
 
-				folderItem = reinterpret_cast<HTREEITEM>(SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&insertStructFolder)));
+				folderItem = InsertTreeItem(insertStructFolder);
 				_folderNodes[folderPath] = folderItem;
 			}
 			else
@@ -268,30 +342,16 @@ namespace HashCalcGUI
 			insertStructFile.item.iImage = fileIcon;
 			insertStructFile.item.iSelectedImage = fileIcon;
 
-			HTREEITEM fileItem = reinterpret_cast<HTREEITEM>(SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&insertStructFile)));
+			HTREEITEM fileItem = InsertTreeItem(insertStructFile);
 
 			SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(folderItem));
 
 			if (fileItem != nullptr)
 			{
-				TVINSERTSTRUCTW insertStructHash = { 0 };
-				insertStructHash.hParent = fileItem;
-				insertStructHash.hInsertAfter = TVI_LAST;
-				insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-				insertStructHash.item.iImage = I_IMAGENONE;
-				insertStructHash.item.iSelectedImage = I_IMAGENONE;
-
-				std::wstring md5Hash = L"MD5: <Pending Calculation>";
-				insertStructHash.item.pszText = const_cast<LPWSTR>(md5Hash.c_str());
-				SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&insertStructHash));
-
-				std::wstring sha1Hash = L"SHA-1: <Pending Calculation>";
-				insertStructHash.item.pszText = const_cast<LPWSTR>(sha1Hash.c_str());
-				SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&insertStructHash));
-
-				std::wstring sha256Hash = L"SHA-256: <Pending Calculation>";
-				insertStructHash.item.pszText = const_cast<LPWSTR>(sha256Hash.c_str());
-				SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&insertStructHash));
+				for (const std::wstring& algo : { L"MD5", L"SHA1", L"SHA256" })
+				{
+					AddPendingNodeAndQueue(fileItem, filePath, algo);
+				}
 
 				SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(fileItem));
 			}
@@ -303,10 +363,11 @@ namespace HashCalcGUI
 		{
 			if (std::filesystem::is_directory(targetPath))
 			{
-				std::error_code ec;
-				for (const auto& entry : std::filesystem::recursive_directory_iterator(targetPath, std::filesystem::directory_options::skip_permission_denied, ec))
+				const auto rdi = std::filesystem::recursive_directory_iterator(targetPath, std::filesystem::directory_options::skip_permission_denied);
+				
+				for (const auto& entry : rdi)
 				{
-					if (entry.is_regular_file(ec))
+					if (entry.is_regular_file())
 					{
 						AddFileToTree(entry.path());
 					}
@@ -353,15 +414,11 @@ namespace HashCalcGUI
 					}
 				}
 			}
-			else
+			else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
 			{
-				if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
-				{
-					MessageBoxW(_window, L"Buffer limit exceeded. Select fewer files.", L"Error", MB_ICONERROR);
-				}
+				MessageBoxW(_window, L"Buffer limit exceeded. Select fewer files.", L"Error", MB_ICONERROR);
 			}
 		}
-
 	};
 }
 
