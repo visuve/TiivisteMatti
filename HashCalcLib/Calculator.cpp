@@ -196,7 +196,10 @@ namespace HashLib
 		return CalculateChecksums(ba);
 	}
 
-	std::map<std::wstring, std::wstring> Calculator::CalculateChecksumsFromFile(const std::filesystem::path& path, std::stop_token stopToken)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksumsFromFile(
+		const std::filesystem::path& path,
+		std::stop_token stopToken,
+		ProgressCallback callback)
 	{
 		std::map<std::wstring, std::wstring> results;
 
@@ -217,9 +220,16 @@ namespace HashLib
 		file.exceptions(std::istream::failbit | std::istream::badbit);
 
 		std::vector<uint8_t> buffer(0x100000);
-		uint64_t bytesLeft = std::filesystem::file_size(path);
+		uint64_t totalBytes = std::filesystem::file_size(path);
+		uint64_t bytesLeft = totalBytes;
+		float previousPercent = -1.0f;
 
 		_ASSERT(bytesLeft <= std::numeric_limits<size_t>::max());
+
+		if (callback)
+		{
+			callback(0.00f);
+		}
 
 		while (bytesLeft && file)
 		{
@@ -240,6 +250,17 @@ namespace HashLib
 			{
 				hash.Update(buffer);
 			}
+
+			if (callback)
+			{
+				float currentPercent = static_cast<float>(totalBytes - bytesLeft) / static_cast<float>(totalBytes) * 100.0f;
+
+				if (currentPercent - previousPercent >= 0.01f)
+				{
+					callback(currentPercent);
+					previousPercent = currentPercent;
+				}
+			}
 		}
 
 		for (auto& [name, hash] : hashes)
@@ -248,10 +269,18 @@ namespace HashLib
 			results.emplace(name, hash.ToString());
 		}
 
+		if (callback)
+		{
+			callback(100.0f);
+		}
+
 		return results;
 	}
 
-	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(const std::filesystem::path& path, std::stop_token stopToken)
+	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(
+		const std::filesystem::path& path,
+		std::stop_token stopToken,
+		ProgressCallback callback)
 	{
 		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> results;
 
@@ -264,7 +293,7 @@ namespace HashLib
 				continue;
 			}
 
-			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken));
+			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken, callback));
 		}
 
 		return results;

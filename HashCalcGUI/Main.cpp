@@ -8,7 +8,8 @@ namespace HashCalcGUI
 	{
 		enum Message : UINT
 		{
-			UpdateHash = WM_APP + 1
+			UpdateHash = WM_APP + 1,
+			UpdateProgress = WM_APP + 2
 		};
 
 		enum Command : WORD
@@ -156,6 +157,25 @@ namespace HashCalcGUI
 				}
 				break;
 			}
+			case IDs::Message::UpdateProgress:
+			{
+				HashTaskData* data = reinterpret_cast<HashTaskData*>(wparam);
+				float percentage = std::bit_cast<float>(static_cast<uint32_t>(lparam));
+
+				for (const auto& [algo, item] : data->Items)
+				{
+					std::wstring text = std::format(L"{}: {:.2f}%", algo, percentage);
+
+					TVITEMW tvi = { 0 };
+					tvi.mask = TVIF_TEXT;
+					tvi.hItem = item;
+					tvi.pszText = text.data();
+
+					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+				}
+
+				break;
+			}
 			default:
 				return DefWindowProcW(_window, message, wparam, lparam);
 			}
@@ -275,10 +295,20 @@ namespace HashCalcGUI
 					algorithms.push_back(algo);
 				}
 
-				HashLib::Calculator calc(algorithms);
-				std::map<std::wstring, std::wstring> rawHashes = calc.CalculateChecksumsFromFile(data->FilePath, data->StopToken);
+				const auto progressCallback = [rawData = data.get()](float percentage)
+				{
+						uint32_t bits = std::bit_cast<uint32_t>(percentage);
+					PostMessageW(rawData->Window, IDs::Message::UpdateProgress, reinterpret_cast<WPARAM>(rawData), static_cast<LPARAM>(bits));
+				};
 
-				for (const auto& [algo, hash] : rawHashes)
+				HashLib::Calculator calc(algorithms);
+				std::map<std::wstring, std::wstring> hashes = 
+					calc.CalculateChecksumsFromFile(
+						data->FilePath,
+						data->StopToken,
+						progressCallback);
+
+				for (const auto& [algo, hash] : hashes)
 				{
 					data->Results[algo] = std::format(L"{}: {}", algo, hash);
 				}

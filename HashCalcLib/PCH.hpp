@@ -9,6 +9,8 @@
 #include <array>
 #include <cassert>
 #include <filesystem>
+#include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <ranges>
@@ -16,4 +18,3 @@
 #include <sstream>
 #include <stop_token>
 #include <string_view>
-#include <fstream>

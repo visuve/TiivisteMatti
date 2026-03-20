@@ -37,6 +37,8 @@ export namespace HashLib
 		std::vector<uint8_t> _data;
 	};
 
+	using ProgressCallback = std::function<void(float percent)>;
+
 	class Calculator
 	{
 	public:
@@ -45,8 +47,16 @@ export namespace HashLib
 
 		std::map<std::wstring, std::wstring> CalculateChecksums(std::span<uint8_t> data);
 		std::map<std::wstring, std::wstring> CalculateChecksums(std::wstring_view data);
-		std::map<std::wstring, std::wstring> CalculateChecksumsFromFile(const std::filesystem::path& path, std::stop_token stopToken);
-		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(const std::filesystem::path& path, std::stop_token stopToken);
+		
+		std::map<std::wstring, std::wstring> CalculateChecksumsFromFile(
+			const std::filesystem::path& path,
+			std::stop_token stopToken,
+			ProgressCallback callback = nullptr);
+
+		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(
+			const std::filesystem::path& path,
+			std::stop_token stopToken,
+			ProgressCallback callback = nullptr);
 
 	private:
 		std::vector<std::pair<std::wstring, BCRYPT_ALG_HANDLE>> _providers;
