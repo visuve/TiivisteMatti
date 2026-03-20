@@ -179,7 +179,7 @@ namespace HashLib
 
 		file.exceptions(std::istream::failbit | std::istream::badbit);
 
-		std::vector<uint8_t> buffer(0x400);
+		std::vector<uint8_t> buffer(0x100000);
 		uint64_t bytesLeft = std::filesystem::file_size(path);
 
 		_ASSERT(bytesLeft <= std::numeric_limits<size_t>::max());
