@@ -14,13 +14,13 @@ namespace HashCalcGUI
 		enum Command : WORD
 		{
 			FileBrowse = 1001,
-			FileExit   = 1002,
-			HelpAbout  = 1003
+			FileExit = 1002,
+			HelpAbout = 1003
 		};
 
 		enum Control : UINT_PTR
 		{
-			TreeView  = 2001,
+			TreeView = 2001,
 			StatusBar = 2002
 		};
 	};
@@ -31,10 +31,9 @@ namespace HashCalcGUI
 		struct HashTaskData
 		{
 			HWND Window;
-			HTREEITEM Item;
 			std::filesystem::path FilePath;
-			std::wstring Algorithm;
-			std::wstring Result;
+			std::map<std::wstring, HTREEITEM> Items;
+			std::map<std::wstring, std::wstring> Results;
 			std::stop_token StopToken;
 		};
 
@@ -71,6 +70,7 @@ namespace HashCalcGUI
 			}
 
 			ShowWindow(_window, cmdShow);
+			UpdateWindow(_window);
 
 			return true;
 		}
@@ -145,12 +145,15 @@ namespace HashCalcGUI
 			{
 				std::unique_ptr<HashTaskData> data(reinterpret_cast<HashTaskData*>(lparam));
 
-				TVITEMW tvi = { 0 };
-				tvi.mask = TVIF_TEXT;
-				tvi.hItem = data->Item;
-				tvi.pszText = data->Result.data();
+				for (const auto& [algo, item] : data->Items)
+				{
+					TVITEMW tvi = { 0 };
+					tvi.mask = TVIF_TEXT;
+					tvi.hItem = item;
+					tvi.pszText = data->Results[algo].data();
 
-				SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+				}
 				break;
 			}
 			default:
@@ -266,13 +269,28 @@ namespace HashCalcGUI
 
 			try
 			{
-				HashLib::Calculator calc(data->Algorithm);
-				std::wstring hashStr = calc.CalculateChecksumFromFile(data->FilePath, data->StopToken);
-				data->Result = std::format(L"{}: {}", data->Algorithm, hashStr);
+				std::vector<std::wstring> algorithms;
+				for (const auto& [algo, item] : data->Items)
+				{
+					algorithms.push_back(algo);
+				}
+
+				HashLib::Calculator calc(algorithms);
+				std::map<std::wstring, std::wstring> rawHashes = calc.CalculateChecksumsFromFile(data->FilePath, data->StopToken);
+
+				for (const auto& [algo, hash] : rawHashes)
+				{
+					data->Results[algo] = std::format(L"{}: {}", algo, hash);
+				}
 			}
 			catch (const std::exception& e)
 			{
-				data->Result = std::format(L"{}: Error: {}", data->Algorithm, HashLib::Strings::ToWide(e.what()));
+				std::wstring error = HashLib::Strings::ToWide(e.what());
+
+				for (const auto& [algo, item] : data->Items)
+				{
+					data->Results[algo] = std::format(L"{}: Error: {}", algo, error);
+				}
 			}
 
 			if (PostMessageW(data->Window, IDs::Message::UpdateHash, 0, reinterpret_cast<LPARAM>(data.get())))
@@ -285,24 +303,6 @@ namespace HashCalcGUI
 		{
 			LRESULT result = SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
 			return reinterpret_cast<HTREEITEM>(result);
-		}
-
-		void AddPendingNodeAndQueue(HTREEITEM fileItem, const std::filesystem::path& filePath, const std::wstring& algoName)
-		{
-			TVINSERTSTRUCTW insertStructHash = { 0 };
-			insertStructHash.hParent = fileItem;
-			insertStructHash.hInsertAfter = TVI_LAST;
-			insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-			insertStructHash.item.iImage = I_IMAGENONE;
-			insertStructHash.item.iSelectedImage = I_IMAGENONE;
-
-			std::wstring pendingText = algoName + L": <Pending Calculation>";
-			insertStructHash.item.pszText = pendingText.data();
-			HTREEITEM hashItem = InsertTreeItem(insertStructHash);
-
-			HashTaskData* taskData = new HashTaskData{ _window, hashItem, filePath, algoName, L"", _stopSource.get_token()};
-			
-			TrySubmitThreadpoolCallback(HashWorker, taskData, &_threadPool);
 		}
 
 		void AddFileToTree(const std::filesystem::path& filePath)
@@ -335,7 +335,7 @@ namespace HashCalcGUI
 				folderItem = _folderNodes[folderPath];
 			}
 
-			int fileIcon = GetSystemIconIndex(filePath.wstring(), false);
+			int fileIcon = GetSystemIconIndex(filePath, false);
 
 			TVINSERTSTRUCTW insertStructFile = { 0 };
 			insertStructFile.hParent = folderItem;
@@ -353,9 +353,27 @@ namespace HashCalcGUI
 
 			if (fileItem != nullptr)
 			{
+				HashTaskData* taskData = new HashTaskData{ _window, filePath, {}, {}, _stopSource.get_token() };
+
 				for (const std::wstring& algo : { L"MD5", L"SHA1", L"SHA256" })
 				{
-					AddPendingNodeAndQueue(fileItem, filePath, algo);
+					TVINSERTSTRUCTW insertStructHash = { 0 };
+					insertStructHash.hParent = fileItem;
+					insertStructHash.hInsertAfter = TVI_LAST;
+					insertStructHash.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+					insertStructHash.item.iImage = I_IMAGENONE;
+					insertStructHash.item.iSelectedImage = I_IMAGENONE;
+
+					std::wstring pendingText = algo + L": <Pending Calculation>";
+					insertStructHash.item.pszText = pendingText.data();
+					HTREEITEM hashItem = InsertTreeItem(insertStructHash);
+
+					taskData->Items[algo] = hashItem;
+				}
+
+				if (!TrySubmitThreadpoolCallback(HashWorker, taskData, &_threadPool))
+				{
+					delete taskData;
 				}
 
 				SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(fileItem));
@@ -369,7 +387,7 @@ namespace HashCalcGUI
 			if (std::filesystem::is_directory(targetPath))
 			{
 				const auto rdi = std::filesystem::recursive_directory_iterator(targetPath, std::filesystem::directory_options::skip_permission_denied);
-				
+
 				for (const auto& entry : rdi)
 				{
 					if (entry.is_regular_file())

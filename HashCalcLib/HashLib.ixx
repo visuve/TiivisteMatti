@@ -22,6 +22,12 @@ export namespace HashLib
 		Hash(BCRYPT_ALG_HANDLE algorithm);
 		~Hash();
 
+		Hash(const Hash&) = delete;
+		Hash& operator=(const Hash&) = delete;
+
+		Hash(Hash&& other);
+		Hash& operator = (Hash&& other);
+
 		void Update(std::span<uint8_t> data);
 		void Finish();
 		std::wstring ToString() const;
@@ -34,16 +40,16 @@ export namespace HashLib
 	class Calculator
 	{
 	public:
-		Calculator(std::wstring_view algorithmName);
+		Calculator(const std::vector<std::wstring>& algorithms);
 		~Calculator();
 
-		std::wstring CalculateChecksum(std::span<uint8_t> data);
-		std::wstring CalculateChecksum(std::wstring_view data);
-		std::wstring CalculateChecksumFromFile(const std::filesystem::path& path, std::stop_token stopToken);
-		std::map<std::filesystem::path, std::wstring> CalculateChecksumFromFolder(const std::filesystem::path& path, std::stop_token stopToken);
+		std::map<std::wstring, std::wstring> CalculateChecksums(std::span<uint8_t> data);
+		std::map<std::wstring, std::wstring> CalculateChecksums(std::wstring_view data);
+		std::map<std::wstring, std::wstring> CalculateChecksumsFromFile(const std::filesystem::path& path, std::stop_token stopToken);
+		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(const std::filesystem::path& path, std::stop_token stopToken);
 
 	private:
-		BCRYPT_ALG_HANDLE _algorithmHandle = nullptr;
+		std::vector<std::pair<std::wstring, BCRYPT_ALG_HANDLE>> _providers;
 	};
 }
 

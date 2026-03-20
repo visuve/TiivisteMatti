@@ -52,12 +52,12 @@ namespace HashCalcCLI
 		BCRYPT_SHA512_ALGORITHM
 	};
 
-	bool IsSupportedAlgorithm(std::wstring_view algorithm)
+	bool ContainsUnsupportedAlgorithms(const std::vector<std::wstring>& algorithms)
 	{
-		return std::find(
-			SupportedAlgorithms.cbegin(),
-			SupportedAlgorithms.cend(),
-			algorithm) != SupportedAlgorithms.cend();
+		return std::ranges::any_of(algorithms, [](const auto& algo)
+		{
+			return std::ranges::find(SupportedAlgorithms, algo) == std::ranges::end(SupportedAlgorithms);
+		});
 	}
 
 	void PrintUsage(const std::filesystem::path& exePath)
@@ -90,47 +90,54 @@ int wmain(int argc, wchar_t* argv[])
 {
 	using namespace HashCalcCLI;
 
+	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+
 	if (argc == 1 || argc > 3)
 	{
 		PrintUsage(argv[0]);
 		return ERROR_BAD_ARGUMENTS;
 	}
 
-	std::wstring selectedAlgorithm = BCRYPT_SHA256_ALGORITHM;
+	std::vector<std::wstring> selectedAlgorithms = { BCRYPT_SHA256_ALGORITHM };
 
 	if (argc == 3)
 	{
-		if (IsSupportedAlgorithm(argv[2]))
-		{
-			selectedAlgorithm = argv[2];
-		}
-		else
+		selectedAlgorithms = HashLib::Strings::Split(argv[2]);
+
+		if (ContainsUnsupportedAlgorithms(selectedAlgorithms))
 		{
 			PrintUsage(argv[0]);
 			return ERROR_BAD_ARGUMENTS;
 		}
 	}
 
-	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-
 	try
 	{
-		HashLib::Calculator hashCalc(selectedAlgorithm);
+		HashLib::Calculator hashCalc(selectedAlgorithms);
 
 		if (IsReadableFile(argv[1]))
 		{
-			std::wcout << hashCalc.CalculateChecksumFromFile(argv[1], StopSource.get_token());
+			for (const auto& [algo, hash] : hashCalc.CalculateChecksumsFromFile(argv[1], StopSource.get_token()))
+			{
+				std::wcout << algo << L'\t' << hash << std::endl;
+			}
 		}
 		else if (IsReadableFolder(argv[1]))
 		{
-			for (const auto& [path, hash] : hashCalc.CalculateChecksumFromFolder(argv[1], StopSource.get_token()))
+			for (const auto& [path, hashes] : hashCalc.CalculateChecksumsFromFolder(argv[1], StopSource.get_token()))
 			{
-				std::wcout << path << L":\t" << hash << std::endl;
+				for (const auto& [algo, hash] : hashes)
+				{
+					std::wcout << path << L'\t' << algo << L'\t' << hash << std::endl;
+				}
 			}
 		}
 		else
 		{
-			std::wcout << hashCalc.CalculateChecksum(std::wstring(argv[1]));
+			for (const auto& [algo, hash] : hashCalc.CalculateChecksums(argv[1]))
+			{
+				std::wcout << algo << L'\t' << hash << std::endl;
+			}
 		}
 	}
 	catch (const HashLib::Exception& e)

@@ -30,21 +30,18 @@ namespace HashLib
 
 	Hash::Hash(BCRYPT_ALG_HANDLE algorithm)
 	{
-		// Create hash object
-		{
-			const NTSTATUS status = BCryptCreateHash(
-				algorithm,
-				&_handle,
-				nullptr,
-				0,
-				nullptr,
-				0,
-				0);
+		const NTSTATUS status = BCryptCreateHash(
+			algorithm,
+			&_handle,
+			nullptr,
+			0,
+			nullptr,
+			0,
+			0);
 
-			if (status != 0)
-			{
-				throw Exception(L"BCryptCreateHash", status);
-			}
+		if (status != 0)
+		{
+			throw Exception(L"BCryptCreateHash", status);
 		}
 
 		size_t hashSize = PropertySize(algorithm, BCRYPT_HASH_LENGTH);
@@ -59,6 +56,28 @@ namespace HashLib
 			BCryptDestroyHash(_handle);
 			_handle = nullptr;
 		}
+	}
+
+	Hash::Hash(Hash&& other) :
+		_handle(std::exchange(other._handle, nullptr)),
+		_data(std::move(other._data))
+	{
+	}
+
+	Hash& Hash::operator = (Hash&& other)
+	{
+		if (this != &other)
+		{
+			if (_handle)
+			{
+				BCryptDestroyHash(_handle);
+			}
+
+			_handle = std::exchange(other._handle, nullptr);
+			_data = std::move(other._data);
+		}
+
+		return *this;
 	}
 
 	void Hash::Update(std::span<uint8_t> data)
@@ -122,60 +141,78 @@ namespace HashLib
 	}
 
 
-	Calculator::Calculator(std::wstring_view algorithmName)
+	Calculator::Calculator(const std::vector<std::wstring>& algorithms)
 	{
-		const NTSTATUS status = BCryptOpenAlgorithmProvider(
-			&_algorithmHandle,
-			algorithmName.data(),
-			nullptr,
-			BCRYPT_HASH_REUSABLE_FLAG);
-
-		if (status != 0)
+		for (const std::wstring& algorithm : algorithms)
 		{
-			throw Exception(L"BCryptOpenAlgorithmProvider", status);
+			BCRYPT_ALG_HANDLE handle = nullptr;
+
+			const NTSTATUS status = BCryptOpenAlgorithmProvider(
+				&handle,
+				algorithm.data(),
+				nullptr,
+				BCRYPT_HASH_REUSABLE_FLAG);
+
+			if (status != 0)
+			{
+				throw Exception(L"BCryptOpenAlgorithmProvider", status);
+			}
+
+			_providers.emplace_back(algorithm, handle);
 		}
 	}
 
 	Calculator::~Calculator()
 	{
-		if (_algorithmHandle)
+		for (const auto& [_, handle] : _providers)
 		{
-			BCryptCloseAlgorithmProvider(_algorithmHandle, 0);
-			_algorithmHandle = nullptr;
+			if (handle)
+			{
+				BCryptCloseAlgorithmProvider(handle, 0);
+			}
 		}
+
+		_providers.clear();
 	}
 
-	std::wstring Calculator::CalculateChecksum(std::span<uint8_t> data)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::span<uint8_t> data)
 	{
-		if (_algorithmHandle == nullptr)
+		std::map<std::wstring, std::wstring> results;
+		
+		for (const auto& [name, handle] : _providers)
 		{
-			return {};
+			Hash hash(handle);
+			hash.Update(data);
+			hash.Finish();
+			results.emplace(name, hash.ToString());
 		}
 
-		Hash hash(_algorithmHandle);
-
-		hash.Update(data);
-		hash.Finish();
-
-		return hash.ToString();
+		return results;
 	}
 
-	std::wstring Calculator::CalculateChecksum(std::wstring_view data)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::wstring_view data)
 	{
 		std::vector<uint8_t> ba = Strings::ToByteArray(data, CP_UTF8);
-		return CalculateChecksum(ba);
+		return CalculateChecksums(ba);
 	}
 
-	std::wstring Calculator::CalculateChecksumFromFile(const std::filesystem::path& path, std::stop_token stopToken)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksumsFromFile(const std::filesystem::path& path, std::stop_token stopToken)
 	{
+		std::map<std::wstring, std::wstring> results;
+
 		std::basic_ifstream<uint8_t> file(path, std::ios::in | std::ios::binary);
 
 		if (!file)
 		{
-			return {};
+			return results;
 		}
 
-		Hash hash(_algorithmHandle);
+		std::vector<std::pair<std::wstring, Hash>> hashes;
+
+		for (const auto& [name, handle] : _providers)
+		{
+			hashes.emplace_back(name, Hash(handle));
+		}
 
 		file.exceptions(std::istream::failbit | std::istream::badbit);
 
@@ -199,17 +236,24 @@ namespace HashLib
 			file.read(buffer.data(), buffer.size());
 			bytesLeft -= buffer.size();
 
-			hash.Update(buffer);
+			for (auto& [name, hash] : hashes)
+			{
+				hash.Update(buffer);
+			}
 		}
 
-		hash.Finish();
+		for (auto& [name, hash] : hashes)
+		{
+			hash.Finish();
+			results.emplace(name, hash.ToString());
+		}
 
-		return hash.ToString();
+		return results;
 	}
 
-	std::map<std::filesystem::path, std::wstring> Calculator::CalculateChecksumFromFolder(const std::filesystem::path& path, std::stop_token stopToken)
+	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(const std::filesystem::path& path, std::stop_token stopToken)
 	{
-		std::map<std::filesystem::path, std::wstring> result;
+		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> results;
 
 		const std::filesystem::directory_options options = std::filesystem::directory_options::skip_permission_denied;
 
@@ -220,9 +264,9 @@ namespace HashLib
 				continue;
 			}
 
-			result.emplace(entry.path(), CalculateChecksumFromFile(entry.path(), stopToken));
+			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken));
 		}
 
-		return result;
+		return results;
 	}
 }
