@@ -95,6 +95,7 @@ namespace HashCalcGUI
 		int _totalFiles = 0;
 		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
 		std::stop_source _stopSource;
+		TP_CALLBACK_ENVIRON _threadPool;
 
 		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -160,6 +161,8 @@ namespace HashCalcGUI
 
 		void OnCreate()
 		{
+			InitializeThreadpoolEnvironment(&_threadPool);
+
 			_treeView = CreateWindowExW(WS_EX_CLIENTEDGE, WC_TREEVIEWW, L"",
 				WS_CHILD | WS_VISIBLE | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
 				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(IDs::TreeView), GetModuleHandle(nullptr), nullptr);
@@ -257,9 +260,9 @@ namespace HashCalcGUI
 			return fileInfo.iIcon;
 		}
 
-		static DWORD WINAPI HashWorker(LPVOID param)
+		static VOID CALLBACK HashWorker(PTP_CALLBACK_INSTANCE, PVOID context)
 		{
-			std::unique_ptr<HashTaskData> data(static_cast<HashTaskData*>(param));
+			std::unique_ptr<HashTaskData> data(static_cast<HashTaskData*>(context));
 
 			try
 			{
@@ -276,8 +279,6 @@ namespace HashCalcGUI
 			{
 				data.release();
 			}
-
-			return 0;
 		}
 
 		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const
@@ -300,7 +301,8 @@ namespace HashCalcGUI
 			HTREEITEM hashItem = InsertTreeItem(insertStructHash);
 
 			HashTaskData* taskData = new HashTaskData{ _window, hashItem, filePath, algoName, L"", _stopSource.get_token()};
-			QueueUserWorkItem(HashWorker, taskData, WT_EXECUTEDEFAULT);
+			
+			TrySubmitThreadpoolCallback(HashWorker, taskData, &_threadPool);
 		}
 
 		void AddFileToTree(const std::filesystem::path& filePath)
