@@ -37,7 +37,8 @@ export namespace HashLib
 		std::vector<uint8_t> _data;
 	};
 
-	using ProgressCallback = std::function<void(float percent)>;
+	using FileProgressCallback = std::function<void(float percent)>;
+	using FolderProgressCallback = std::function<void(const std::filesystem::path& path, float percent)>;
 
 	class Calculator
 	{
@@ -51,12 +52,12 @@ export namespace HashLib
 		std::map<std::wstring, std::wstring> CalculateChecksumsFromFile(
 			const std::filesystem::path& path,
 			std::stop_token stopToken,
-			ProgressCallback callback = nullptr) const;
+			FileProgressCallback callback = nullptr) const;
 
 		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(
 			const std::filesystem::path& path,
 			std::stop_token stopToken,
-			ProgressCallback callback = nullptr) const;
+			FolderProgressCallback callback = nullptr) const;
 
 	private:
 		std::vector<std::pair<std::wstring, BCRYPT_ALG_HANDLE>> _providers;

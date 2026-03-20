@@ -341,7 +341,7 @@ namespace HashLib
 	std::map<std::wstring, std::wstring> Calculator::CalculateChecksumsFromFile(
 		const std::filesystem::path& path,
 		std::stop_token stopToken,
-		ProgressCallback callback) const
+		FileProgressCallback callback) const
 	{
 		std::map<std::wstring, std::wstring> results;
 
@@ -412,7 +412,7 @@ namespace HashLib
 	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(
 		const std::filesystem::path& path,
 		std::stop_token stopToken,
-		ProgressCallback callback) const
+		FolderProgressCallback callback) const
 	{
 		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> results;
 
@@ -425,7 +425,17 @@ namespace HashLib
 				continue;
 			}
 
-			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken, callback));
+			FileProgressCallback fileCallback = nullptr;
+
+			if (callback)
+			{
+				fileCallback = [&callback, currentPath = entry.path()] (float percent)
+				{ 
+					callback(currentPath, percent); 
+				};
+			}
+
+			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken, fileCallback));
 		}
 
 		return results;
