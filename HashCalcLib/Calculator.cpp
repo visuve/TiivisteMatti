@@ -5,6 +5,153 @@ module HashLib;
 
 namespace HashLib
 {
+	class Handle
+	{
+	public:
+		Handle() = default;
+
+		explicit Handle(HANDLE handle) : 
+			_handle(handle) 
+		{
+		}
+
+		~Handle()
+		{
+			Close();
+		}
+
+		Handle(const Handle&) = delete;
+		Handle(Handle&& other) = delete;
+		Handle& operator = (const Handle&) = delete;
+		Handle& operator = (Handle&&) = delete;
+
+		Handle& operator = (HANDLE handle)
+		{
+			if (_handle != handle)
+			{
+				Close();
+				_handle = handle;
+			}
+
+			return *this;
+		}
+
+		void Close()
+		{
+			if (_handle != nullptr && _handle != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(_handle);
+				_handle = INVALID_HANDLE_VALUE;
+			}
+		}
+
+		bool IsValid() const
+		{
+			return _handle != nullptr && _handle != INVALID_HANDLE_VALUE;
+		}
+
+		operator HANDLE() const
+		{ 
+			return _handle; 
+		}
+
+	private:
+		HANDLE _handle = INVALID_HANDLE_VALUE;
+	};
+
+	class MemoryMappedFile
+	{
+	public:
+		MemoryMappedFile(const std::filesystem::path& path) :
+			_file(CreateFileW(
+				path.c_str(),
+				GENERIC_READ,
+				FILE_SHARE_READ,
+				nullptr,
+				OPEN_EXISTING,
+				FILE_FLAG_SEQUENTIAL_SCAN,
+				nullptr))
+		{
+			if (!_file.IsValid())
+			{
+				throw std::runtime_error("Failed to open file: " + path.string());
+			}
+
+			LARGE_INTEGER size;
+			if (GetFileSizeEx(_file, &size))
+			{
+				_size = size.QuadPart;
+			}
+
+			if (!_size)
+			{
+				return;
+			}
+
+#ifndef _WIN64
+			constexpr uint64_t MaxX86MapSize = 1024ULL * 1024ULL * 1024ULL; // 1 GB
+			if (_size > MaxX86MapSize)
+			{
+				throw std::runtime_error("File size exceeds safe contiguous mapping limits for 32-bit architecture.");
+			}
+#endif
+
+			_mapping = CreateFileMappingW(_file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+
+			if (!_mapping)
+			{
+				throw std::runtime_error("CreateFileMappingW");
+			}
+
+			_view = MapViewOfFile(_mapping, FILE_MAP_READ, 0, 0, 0);
+
+			if (!_view)
+			{
+				throw std::runtime_error("MapViewOfFile");
+			}
+		}
+
+		~MemoryMappedFile()
+		{
+			if (_view)
+			{
+				UnmapViewOfFile(_view);
+			}
+		}
+
+		MemoryMappedFile(const MemoryMappedFile&) = delete;
+		MemoryMappedFile& operator=(const MemoryMappedFile&) = delete;
+
+		explicit operator bool() const
+		{
+			return _file.IsValid() && (_mapping.IsValid() || !_size);
+		}
+
+		uint64_t Size() const
+		{
+			return _size;
+		}
+
+		std::span<uint8_t> Chunk(uint64_t offset, size_t maxSize) const
+		{
+			if (!_view || offset >= _size)
+			{
+				return {};
+			}
+
+			size_t bytesAvailable = static_cast<size_t>(std::min<uint64_t>(maxSize, _size - offset));
+			uint8_t* data = static_cast<uint8_t*>(_view);
+
+			return { data + offset, bytesAvailable };
+		}
+
+	private:
+		Handle _file;
+		Handle _mapping;
+		void* _view = nullptr;
+		uint64_t _size = 0;
+	};
+
 	size_t PropertySize(BCRYPT_ALG_HANDLE algorithm, std::wstring_view property)
 	{
 		DWORD object = 0;
@@ -20,9 +167,7 @@ namespace HashLib
 
 		if (status != 0 || object == 0 || bytesWritten != sizeof(DWORD))
 		{
-			const std::string message =
-				"BCryptGetProperty(" + Strings::ToNarrow(property) + ')';
-			throw std::exception(message.c_str(), status);
+			throw Exception(std::format(L"BCryptGetProperty({})", property), status);
 		}
 
 		return object;
@@ -140,7 +285,6 @@ namespace HashLib
 		return result;
 	}
 
-
 	Calculator::Calculator(const std::vector<std::wstring>& algorithms)
 	{
 		for (const std::wstring& algorithm : algorithms)
@@ -171,8 +315,6 @@ namespace HashLib
 				BCryptCloseAlgorithmProvider(handle, 0);
 			}
 		}
-
-		_providers.clear();
 	}
 
 	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::span<uint8_t> data)
@@ -203,7 +345,7 @@ namespace HashLib
 	{
 		std::map<std::wstring, std::wstring> results;
 
-		std::basic_ifstream<uint8_t> file(path, std::ios::in | std::ios::binary);
+		MemoryMappedFile file(path);
 
 		if (!file)
 		{
@@ -217,43 +359,35 @@ namespace HashLib
 			hashes.emplace_back(name, Hash(handle));
 		}
 
-		file.exceptions(std::istream::failbit | std::istream::badbit);
-
-		std::vector<uint8_t> buffer(0x100000);
-		uint64_t totalBytes = std::filesystem::file_size(path);
-		uint64_t bytesLeft = totalBytes;
+		constexpr size_t viewSize = 0x100000; // 1 MB chunks
+		const uint64_t totalBytes = file.Size();
+		uint64_t offset = 0;
 		float previousPercent = -1.0f;
-
-		_ASSERT(bytesLeft <= std::numeric_limits<size_t>::max());
 
 		if (callback)
 		{
 			callback(0.00f);
 		}
 
-		while (bytesLeft && file)
+		while (totalBytes && offset < totalBytes)
 		{
 			if (stopToken.stop_requested())
 			{
 				throw std::runtime_error("Cancelled");
 			}
 
-			if (buffer.size() > bytesLeft)
-			{
-				buffer.resize(static_cast<size_t>(bytesLeft));
-			}
-
-			file.read(buffer.data(), buffer.size());
-			bytesLeft -= buffer.size();
+			std::span<uint8_t> data = file.Chunk(offset, viewSize);
 
 			for (auto& [name, hash] : hashes)
 			{
-				hash.Update(buffer);
+				hash.Update(data);
 			}
+
+			offset += data.size_bytes();
 
 			if (callback)
 			{
-				float currentPercent = static_cast<float>(totalBytes - bytesLeft) / static_cast<float>(totalBytes) * 100.0f;
+				float currentPercent = static_cast<float>(offset) / static_cast<float>(totalBytes) * 100.0f;
 
 				if (currentPercent - previousPercent >= 0.01f)
 				{
