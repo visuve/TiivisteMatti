@@ -132,7 +132,7 @@ namespace HashLib
 			return _size;
 		}
 
-		std::span<uint8_t> Chunk(uint64_t offset, size_t maxSize) const
+		std::span<const uint8_t> Chunk(uint64_t offset, size_t maxSize) const
 		{
 			if (!_view || offset >= _size)
 			{
@@ -140,7 +140,7 @@ namespace HashLib
 			}
 
 			size_t bytesAvailable = static_cast<size_t>(std::min<uint64_t>(maxSize, _size - offset));
-			uint8_t* data = static_cast<uint8_t*>(_view);
+			const uint8_t* data = static_cast<uint8_t*>(_view);
 
 			return { data + offset, bytesAvailable };
 		}
@@ -225,7 +225,7 @@ namespace HashLib
 		return *this;
 	}
 
-	void Hash::Update(std::span<uint8_t> data)
+	void Hash::Update(std::span<const uint8_t> data)
 	{
 		if (_handle == nullptr)
 		{
@@ -234,7 +234,7 @@ namespace HashLib
 
 		const NTSTATUS status = BCryptHashData(
 			_handle,
-			data.data(),
+			const_cast<PUCHAR>(data.data()),
 			static_cast<ULONG>(data.size_bytes()),
 			0);
 
@@ -317,7 +317,7 @@ namespace HashLib
 		}
 	}
 
-	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::span<uint8_t> data)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::span<const uint8_t> data) const
 	{
 		std::map<std::wstring, std::wstring> results;
 		
@@ -332,7 +332,7 @@ namespace HashLib
 		return results;
 	}
 
-	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::wstring_view data)
+	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::wstring_view data) const
 	{
 		std::vector<uint8_t> ba = Strings::ToByteArray(data, CP_UTF8);
 		return CalculateChecksums(ba);
@@ -341,7 +341,7 @@ namespace HashLib
 	std::map<std::wstring, std::wstring> Calculator::CalculateChecksumsFromFile(
 		const std::filesystem::path& path,
 		std::stop_token stopToken,
-		ProgressCallback callback)
+		ProgressCallback callback) const
 	{
 		std::map<std::wstring, std::wstring> results;
 
@@ -362,7 +362,10 @@ namespace HashLib
 		constexpr size_t viewSize = 0x100000; // 1 MB chunks
 		const uint64_t totalBytes = file.Size();
 		uint64_t offset = 0;
-		float previousPercent = -1.0f;
+
+		// 10000 represents 0.01% increments
+		const uint64_t updateThreshold = std::max<uint64_t>(1, totalBytes / 10000);
+		uint64_t nextUpdate = updateThreshold;
 
 		if (callback)
 		{
@@ -376,7 +379,7 @@ namespace HashLib
 				throw std::runtime_error("Cancelled");
 			}
 
-			std::span<uint8_t> data = file.Chunk(offset, viewSize);
+			std::span<const uint8_t> data = file.Chunk(offset, viewSize);
 
 			for (auto& [name, hash] : hashes)
 			{
@@ -385,15 +388,10 @@ namespace HashLib
 
 			offset += data.size_bytes();
 
-			if (callback)
+			if (callback && offset >= nextUpdate)
 			{
-				float currentPercent = static_cast<float>(offset) / static_cast<float>(totalBytes) * 100.0f;
-
-				if (currentPercent - previousPercent >= 0.01f)
-				{
-					callback(currentPercent);
-					previousPercent = currentPercent;
-				}
+				callback(static_cast<float>(offset) / static_cast<float>(totalBytes) * 100.0f);
+				nextUpdate = offset + updateThreshold;
 			}
 		}
 
@@ -414,7 +412,7 @@ namespace HashLib
 	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(
 		const std::filesystem::path& path,
 		std::stop_token stopToken,
-		ProgressCallback callback)
+		ProgressCallback callback) const
 	{
 		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> results;
 

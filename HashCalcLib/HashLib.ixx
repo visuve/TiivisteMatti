@@ -28,7 +28,7 @@ export namespace HashLib
 		Hash(Hash&& other);
 		Hash& operator = (Hash&& other);
 
-		void Update(std::span<uint8_t> data);
+		void Update(std::span<const uint8_t> data);
 		void Finish();
 		std::wstring ToString() const;
 
@@ -45,18 +45,18 @@ export namespace HashLib
 		Calculator(const std::vector<std::wstring>& algorithms);
 		~Calculator();
 
-		std::map<std::wstring, std::wstring> CalculateChecksums(std::span<uint8_t> data);
-		std::map<std::wstring, std::wstring> CalculateChecksums(std::wstring_view data);
+		std::map<std::wstring, std::wstring> CalculateChecksums(std::span<const uint8_t> data) const;
+		std::map<std::wstring, std::wstring> CalculateChecksums(std::wstring_view data) const;
 		
 		std::map<std::wstring, std::wstring> CalculateChecksumsFromFile(
 			const std::filesystem::path& path,
 			std::stop_token stopToken,
-			ProgressCallback callback = nullptr);
+			ProgressCallback callback = nullptr) const;
 
 		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(
 			const std::filesystem::path& path,
 			std::stop_token stopToken,
-			ProgressCallback callback = nullptr);
+			ProgressCallback callback = nullptr) const;
 
 	private:
 		std::vector<std::pair<std::wstring, BCRYPT_ALG_HANDLE>> _providers;
