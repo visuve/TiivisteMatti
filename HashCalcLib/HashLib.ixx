@@ -38,7 +38,6 @@ export namespace HashLib
 	};
 
 	using FileProgressCallback = std::function<void(float percent)>;
-	using FolderProgressCallback = std::function<void(const std::filesystem::path& path, float percent)>;
 
 	struct AsyncCallbacks
 	{
@@ -65,11 +64,6 @@ export namespace HashLib
 			const std::filesystem::path& path,
 			std::stop_token stopToken,
 			FileProgressCallback callback = nullptr) const;
-
-		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> CalculateChecksumsFromFolder(
-			const std::filesystem::path& path,
-			std::stop_token stopToken,
-			FolderProgressCallback callback = nullptr) const;
 
 	private:
 		static void ProcessFileAsync(

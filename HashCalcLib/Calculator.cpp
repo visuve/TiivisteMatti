@@ -420,38 +420,6 @@ namespace HashLib
 		return results;
 	}
 
-	std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> Calculator::CalculateChecksumsFromFolder(
-		const std::filesystem::path& path,
-		std::stop_token stopToken,
-		FolderProgressCallback callback) const
-	{
-		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> results;
-
-		const std::filesystem::directory_options options = std::filesystem::directory_options::skip_permission_denied;
-
-		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(path, options))
-		{
-			if (!entry.is_regular_file())
-			{
-				continue;
-			}
-
-			FileProgressCallback fileCallback = nullptr;
-
-			if (callback)
-			{
-				fileCallback = [&callback, currentPath = entry.path()] (float percent)
-				{ 
-					callback(currentPath, percent); 
-				};
-			}
-
-			results.emplace(entry.path(), CalculateChecksumsFromFile(entry.path(), stopToken, fileCallback));
-		}
-
-		return results;
-	}
-
 	void Calculator::ProcessFileAsync(
 		std::stop_token stopToken,
 		const Calculator* self,
