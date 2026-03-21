@@ -384,8 +384,11 @@ namespace HashCalcGUI
 		{
 			const std::filesystem::path folderPath = filePath.parent_path();
 			HTREEITEM folderItem = nullptr;
+			bool isNewFolder = false;
 
-			if (_folderNodes.find(folderPath) == _folderNodes.end())
+			const auto it = _folderNodes.find(folderPath);
+
+			if (it == _folderNodes.end())
 			{
 				int folderIcon = GetSystemIconIndex(folderPath, true);
 
@@ -399,10 +402,11 @@ namespace HashCalcGUI
 
 				folderItem = InsertTreeItem(insertStructFolder);
 				_folderNodes[folderPath] = folderItem;
+				isNewFolder = true;
 			}
 			else
 			{
-				folderItem = _folderNodes[folderPath];
+				folderItem = it->second;
 			}
 
 			int fileIcon = GetSystemIconIndex(filePath, false);
@@ -420,7 +424,10 @@ namespace HashCalcGUI
 			HTREEITEM fileItem = InsertTreeItem(insertStructFile);
 			_fileNodes[filePath] = fileItem;
 
-			SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(folderItem));
+			if (isNewFolder)
+			{
+				SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(folderItem));
+			}
 
 			if (fileItem != nullptr)
 			{
