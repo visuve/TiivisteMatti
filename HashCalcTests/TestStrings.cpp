@@ -34,6 +34,15 @@ public:
 		Assert::AreEqual(result[2], L'C');
 	}
 
+
+	TEST_METHOD(ConvertEmptyStrings)
+	{
+		Assert::AreEqual(size_t(0), HashLib::Strings::ToNarrow(L"").size());
+		Assert::AreEqual(size_t(0), HashLib::Strings::ToWide("").size());
+		Assert::AreEqual(size_t(0), HashLib::Strings::ToByteArray(L"").size());
+		Assert::AreEqual(size_t(0), HashLib::Strings::Split(L"").size());
+	}
+
 	TEST_METHOD(Join)
 	{
 		std::vector<std::wstring> elements = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
@@ -54,6 +63,16 @@ public:
 		{
 			Assert::AreEqual(expected[i].c_str(), result[i].c_str());
 		}
+	}
+
+	TEST_METHOD(SplitPaths)
+	{
+		std::wstring input = L"C:\\file1.txt,D:\\folder\\file2.exe";
+		auto result = HashLib::Strings::SplitPaths(input);
+
+		Assert::AreEqual(size_t(2), result.size());
+		Assert::AreEqual(L"C:\\file1.txt", result[0].c_str());
+		Assert::AreEqual(L"D:\\folder\\file2.exe", result[1].c_str());
 	}
 
 	TEST_METHOD(Bytes)

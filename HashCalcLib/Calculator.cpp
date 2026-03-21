@@ -467,7 +467,7 @@ namespace HashLib
 		{
 			if (stopToken.stop_requested())
 			{
-				return;
+				break;
 			}
 
 			std::error_code ec;
@@ -480,7 +480,7 @@ namespace HashLib
 				{
 					if (stopToken.stop_requested())
 					{
-						return;
+						break;
 					}
 
 					if (entry.is_regular_file(ec))
@@ -493,9 +493,13 @@ namespace HashLib
 			{
 				ProcessFileAsync(stopToken, self, target, callbacks);
 			}
+			else if (callbacks.OnError && !stopToken.stop_requested())
+			{
+				callbacks.OnError(target, L"Not found or inaccessible.");
+			}
 		}
 
-		if (callbacks.OnFinished && !stopToken.stop_requested())
+		if (callbacks.OnFinished)
 		{
 			callbacks.OnFinished();
 		}
