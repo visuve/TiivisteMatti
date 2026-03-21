@@ -44,11 +44,11 @@ namespace HashCalcGUI
 	class MainWindow
 	{
 	public:
-		bool Create(HINSTANCE instance, int cmdShow)
+		void Create(HINSTANCE instance, int cmdShow)
 		{
 			const wchar_t className[] = L"HashCalcWindow";
 			WNDCLASSW windowClass = { 0 };
-			windowClass.lpfnWndProc = StaticWndProc;
+			windowClass.lpfnWndProc = WindowProcedure;
 			windowClass.hInstance = instance;
 			windowClass.lpszClassName = className;
 			windowClass.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
@@ -73,13 +73,11 @@ namespace HashCalcGUI
 
 			if (_window == nullptr)
 			{
-				return false;
+				throw std::system_error(GetLastError(), std::system_category(), "CreateWindowExW failed");
 			}
 
 			ShowWindow(_window, cmdShow);
 			UpdateWindow(_window);
-
-			return true;
 		}
 
 		int Run()
@@ -111,7 +109,7 @@ namespace HashCalcGUI
 		HashLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
 		std::jthread _workerThread;
 
-		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+		static LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
 			MainWindow* self = nullptr;
 
@@ -129,88 +127,97 @@ namespace HashCalcGUI
 
 			if (self != nullptr)
 			{
-				return self->WndProc(message, wparam, lparam);
+				return self->HandleMessage(message, wparam, lparam);
 			}
 
 			return DefWindowProcW(window, message, wparam, lparam);
 		}
 
-		LRESULT WndProc(UINT message, WPARAM wparam, LPARAM lparam)
+		LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam)
 		{
-			switch (message)
+			try
 			{
-			case WM_CREATE:
-				OnCreate();
-				break;
-			case WM_SIZE:
-				OnSize(lparam);
-				break;
-			case WM_COMMAND:
-				OnCommand(LOWORD(wparam));
-				break;
-			case WM_DROPFILES:
-				OnDropFiles(reinterpret_cast<HDROP>(wparam));
-				break;
-			case WM_DESTROY:
-				if (_workerThread.joinable())
+				switch (message)
 				{
-					_workerThread.request_stop();
-				}
-				PostQuitMessage(0);
-				break;
+				case WM_CREATE:
+					OnCreate();
+					break;
+				case WM_SIZE:
+					OnSize(lparam);
+					break;
+				case WM_COMMAND:
+					OnCommand(LOWORD(wparam));
+					break;
+				case WM_DROPFILES:
+					OnDropFiles(reinterpret_cast<HDROP>(wparam));
+					break;
+				case WM_DESTROY:
+					if (_workerThread.joinable())
+					{
+						_workerThread.request_stop();
+					}
+					PostQuitMessage(0);
+					break;
 
-			case IDs::Message::UpdateProgress:
-			{
-				std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
-
-				if (_progressNodes.find(data->FilePath) == _progressNodes.end())
+				case IDs::Message::UpdateProgress:
 				{
-					AddFileToTree(data->FilePath);
+					std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
+
+					if (_progressNodes.find(data->FilePath) == _progressNodes.end())
+					{
+						AddFileToTree(data->FilePath);
+					}
+
+					std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
+
+					TVITEMW tvi = { 0 };
+					tvi.mask = TVIF_TEXT;
+					tvi.hItem = _progressNodes[data->FilePath];
+					tvi.pszText = text.data();
+
+					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+					break;
 				}
-
-				std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
-
-				TVITEMW tvi = { 0 };
-				tvi.mask = TVIF_TEXT;
-				tvi.hItem = _progressNodes[data->FilePath];
-				tvi.pszText = text.data();
-
-				SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
-				break;
-			}
-			case IDs::Message::UpdateComplete:
-			{
-				std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-				if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+				case IDs::Message::UpdateComplete:
 				{
-					AddFileToTree(data->FilePath); // Failsafe for 0-byte files
+					std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+					if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+					{
+						AddFileToTree(data->FilePath); // Failsafe for 0-byte files
+					}
+
+					FinalizeFileNode(data->FilePath, data->Hashes, L"");
+					break;
 				}
-
-				FinalizeFileNode(data->FilePath, data->Hashes, L"");
-				break;
-			}
-			case IDs::Message::UpdateError:
-			{
-				std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-				if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+				case IDs::Message::UpdateError:
 				{
-					AddFileToTree(data->FilePath);
-				}
+					std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
 
-				FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
-				break;
+					if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+					{
+						AddFileToTree(data->FilePath);
+					}
+
+					FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
+					break;
+				}
+				case IDs::Message::AllFinished:
+				{
+					std::wstring text = std::format(L"Finished. Total files processed: {}", _totalFiles);
+					SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
+					break;
+				}
+				default:
+					return DefWindowProcW(_window, message, wparam, lparam);
+				}
 			}
-			case IDs::Message::AllFinished:
+			catch (const std::exception& e)
 			{
-				std::wstring text = std::format(L"Finished. Total files processed: {}", _totalFiles);
-				SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
-				break;
+				std::wstring errorMsg = HashLib::Strings::ToWide(e.what());
+				MessageBoxW(_window, errorMsg.c_str(), L"Application Error", MB_OK | MB_ICONERROR);
 			}
-			default:
-				return DefWindowProcW(_window, message, wparam, lparam);
-			}
+
 			return 0;
 		}
 
@@ -490,42 +497,42 @@ namespace HashCalcGUI
 			HashLib::AsyncCallbacks callbacks;
 
 			callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
-			{
-				auto data = new ProgressData{ path, percentage };
-
-				while (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
 				{
-					Sleep(1);
-				}
-			};
+					auto data = new ProgressData{ path, percentage };
+
+					while (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
+					{
+						Sleep(1);
+					}
+				};
 
 			callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
-			{
-				auto data = new ResultData{ path, hashes, L"" };
-
-				while (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
 				{
-					Sleep(1);
-				}
-			};
+					auto data = new ResultData{ path, hashes, L"" };
+
+					while (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
+					{
+						Sleep(1);
+					}
+				};
 
 			callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
-			{
-				auto data = new ResultData{ path, {}, errorMsg };
-
-				while (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
 				{
-					Sleep(1);
-				}
-			};
+					auto data = new ResultData{ path, {}, errorMsg };
+
+					while (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
+					{
+						Sleep(1);
+					}
+				};
 
 			callbacks.OnFinished = [hwnd = _window]()
-			{
-				while (!PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0))
 				{
-					Sleep(1);
-				}
-			};
+					while (!PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0))
+					{
+						Sleep(1);
+					}
+				};
 
 			_workerThread = _calculator.CalculateChecksumsAsync(paths, std::move(callbacks));
 		}
@@ -576,21 +583,37 @@ namespace HashCalcGUI
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 {
-	INITCOMMONCONTROLSEX initCtrl = { 0 };
-	initCtrl.dwSize = sizeof(INITCOMMONCONTROLSEX);
-	initCtrl.dwICC = ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES;
-
-	if (!InitCommonControlsEx(&initCtrl))
+	try
 	{
-		return ERROR_CAN_NOT_COMPLETE;
+		INITCOMMONCONTROLSEX initCtrl = { 0 };
+		initCtrl.dwSize = sizeof(INITCOMMONCONTROLSEX);
+		initCtrl.dwICC = ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES;
+
+		if (!InitCommonControlsEx(&initCtrl))
+		{
+			throw std::system_error(GetLastError(), std::system_category(), "InitCommonControlsEx failed");
+		}
+
+		HashCalcGUI::MainWindow app;
+		app.Create(instance, cmdShow);
+
+		return app.Run();
 	}
-
-	HashCalcGUI::MainWindow app;
-
-	if (!app.Create(instance, cmdShow))
+	catch (const std::system_error& e)
 	{
-		return ERROR_INVALID_WINDOW_HANDLE;
+		std::string msg = std::format("Fatal System Error:\n{}\nCode: {}", e.what(), e.code().value());
+		MessageBoxA(nullptr, msg.c_str(), "Initialization Failure", MB_OK | MB_ICONERROR);
+		return e.code().value();
 	}
-
-	return app.Run();
+	catch (const std::exception& e)
+	{
+		std::string msg = std::format("Fatal Error:\n{}", e.what());
+		MessageBoxA(nullptr, msg.c_str(), "Initialization Failure", MB_OK | MB_ICONERROR);
+		return ERROR_UNHANDLED_EXCEPTION;
+	}
+	catch (...)
+	{
+		MessageBoxW(nullptr, L"An unknown catastrophic error occurred.", L"Initialization Failure", MB_OK | MB_ICONERROR);
+		return ERROR_UNHANDLED_EXCEPTION;
+	}
 }

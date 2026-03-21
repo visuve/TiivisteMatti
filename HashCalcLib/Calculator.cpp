@@ -463,6 +463,18 @@ namespace HashLib
 		std::vector<std::filesystem::path> paths,
 		AsyncCallbacks callbacks)
 	{
+		const auto reportError = [&](const std::filesystem::path& path, const std::error_code& error)
+		{
+			if (callbacks.OnError && !stopToken.stop_requested())
+			{
+				std::wstring errorMsg = error
+					? std::format(L"{} ({})", path.native(), Strings::ToWide(error.message()))
+					: std::format(L"{}: Not found or inaccessible.", path.native());
+
+				callbacks.OnError(path, errorMsg);
+			}
+		};
+
 		for (const auto& target : paths)
 		{
 			if (stopToken.stop_requested())
@@ -472,11 +484,23 @@ namespace HashLib
 
 			std::error_code ec;
 
-			if (std::filesystem::is_directory(target, ec))
+			if (std::filesystem::is_regular_file(target, ec))
+			{
+				ProcessFileAsync(stopToken, self, target, callbacks);
+				continue;
+			}
+			else if (std::filesystem::is_directory(target, ec))
 			{
 				const auto options = std::filesystem::directory_options::skip_permission_denied;
+				std::filesystem::recursive_directory_iterator it(target, options, ec);
 
-				for (const auto& entry : std::filesystem::recursive_directory_iterator(target, options, ec))
+				if (ec)
+				{
+					reportError(target, ec);
+					continue;
+				}
+
+				for (const auto& entry : it)
 				{
 					if (stopToken.stop_requested())
 					{
@@ -487,15 +511,15 @@ namespace HashLib
 					{
 						ProcessFileAsync(stopToken, self, entry.path(), callbacks);
 					}
+					else if (ec)
+					{
+						reportError(entry.path(), ec);
+					}
 				}
 			}
-			else if (std::filesystem::is_regular_file(target, ec))
+			else
 			{
-				ProcessFileAsync(stopToken, self, target, callbacks);
-			}
-			else if (callbacks.OnError && !stopToken.stop_requested())
-			{
-				callbacks.OnError(target, L"Not found or inaccessible.");
+				reportError(target, ec);
 			}
 		}
 
