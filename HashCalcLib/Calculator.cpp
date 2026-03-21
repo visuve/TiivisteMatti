@@ -475,6 +475,11 @@ namespace HashLib
 			}
 		};
 
+		if (callbacks.OnStart)
+		{
+			callbacks.OnStart();
+		}
+
 		for (const auto& target : paths)
 		{
 			if (stopToken.stop_requested())

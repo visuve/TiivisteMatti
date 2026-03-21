@@ -125,7 +125,9 @@ namespace HashCalcGUI
 		std::map<std::filesystem::path, HTREEITEM> _progressNodes;
 
 		HashLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
-		std::jthread _workerThread;
+		std::vector<std::jthread> _workerThreads;
+		std::atomic<int> _activeThreads;
+		std::mutex _mutex;
 
 		static LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -170,13 +172,18 @@ namespace HashCalcGUI
 					OnDropFiles(reinterpret_cast<HDROP>(wparam));
 					break;
 				case WM_DESTROY:
-					if (_workerThread.joinable())
+				{
+					for (auto& thread : _workerThreads)
 					{
-						_workerThread.request_stop();
+						if (thread.joinable())
+						{
+							thread.request_stop();
+						}
 					}
+
 					PostQuitMessage(0);
 					break;
-
+				}
 				case IDs::Message::UpdateProgress:
 				{
 					std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
@@ -227,6 +234,8 @@ namespace HashCalcGUI
 				}
 				case IDs::Message::Finished:
 				{
+					_ASSERT(_activeThreads == 0);
+					_workerThreads.clear();
 					UpdateStatusBar(message);
 					break;
 				}
@@ -547,13 +556,20 @@ namespace HashCalcGUI
 
 		void ProcessPathsAsync(const std::vector<std::filesystem::path>& paths)
 		{
-			if (_workerThread.joinable())
+			if (_activeThreads++ == 0)
 			{
-				_workerThread.request_stop();
-				_workerThread.join();
+				_startTime = std::chrono::system_clock::now();
+				_completedFiles = 0;
+				_errorFiles = 0;
+				_dotCount = -1;
 			}
 
 			HashLib::AsyncCallbacks callbacks;
+
+			callbacks.OnStart = [this]()
+			{
+				_mutex.lock();
+			};
 
 			callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
 			{
@@ -585,14 +601,17 @@ namespace HashCalcGUI
 				}
 			};
 
-			callbacks.OnFinished = [hwnd = _window]()
+			callbacks.OnFinished = [this]()
 			{
-				PostMessageW(hwnd, IDs::Message::Finished, 0, 0);
+				_mutex.unlock();
+
+				if (--_activeThreads == 0)
+				{
+					PostMessageW(_window, IDs::Message::Finished, 0, 0);
+				}
 			};
 
-			_workerThread = _calculator.CalculateChecksumsAsync(paths, std::move(callbacks));
-
-			_startTime = std::chrono::system_clock::now();
+			_workerThreads.emplace_back(_calculator.CalculateChecksumsAsync(paths, std::move(callbacks)));
 		}
 
 		void HandleBrowse()

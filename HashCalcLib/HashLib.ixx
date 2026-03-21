@@ -41,6 +41,7 @@ export namespace HashLib
 
 	struct AsyncCallbacks
 	{
+		std::function<void()> OnStart;
 		std::function<void(const std::filesystem::path&, float)> OnProgress;
 		std::function<void(const std::filesystem::path&, const std::map<std::wstring, std::wstring>&)> OnComplete;
 		std::function<void(const std::filesystem::path&, const std::wstring&)> OnError;
