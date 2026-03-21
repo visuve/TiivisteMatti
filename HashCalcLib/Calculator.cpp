@@ -376,7 +376,7 @@ namespace HashLib
 		{
 			if (stopToken.stop_requested())
 			{
-				throw std::runtime_error("Cancelled");
+				return results;
 			}
 
 			std::span<const uint8_t> data = file.Chunk(offset, viewSize);
