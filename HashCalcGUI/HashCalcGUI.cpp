@@ -11,7 +11,7 @@ namespace HashCalcGUI
 			UpdateProgress = WM_APP + 1,
 			UpdateComplete,
 			UpdateError,
-			AllFinished
+			Finished
 		};
 
 		enum Command : WORD
@@ -115,6 +115,7 @@ namespace HashCalcGUI
 		int _completedFiles = 0;
 		int _errorFiles = 0;
 		int _dotCount = -1;
+		std::chrono::system_clock::time_point _startTime;
 
 		std::optional<int> _folderIconIndex;
 		std::map<std::wstring, int> _iconCache;
@@ -183,7 +184,7 @@ namespace HashCalcGUI
 					if (_progressNodes.find(data->FilePath) == _progressNodes.end())
 					{
 						AddFileToTree(data->FilePath);
-						UpdateStatusBar(L"Processing");
+						UpdateStatusBar(message);
 					}
 
 					std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
@@ -207,7 +208,7 @@ namespace HashCalcGUI
 
 					FinalizeFileNode(data->FilePath, data->Hashes, L"");
 					++_completedFiles;
-					UpdateStatusBar(L"Processing");
+					UpdateStatusBar(message);
 					break;
 				}
 				case IDs::Message::UpdateError:
@@ -221,12 +222,12 @@ namespace HashCalcGUI
 
 					FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
 					++_errorFiles;
-					UpdateStatusBar(L"Error");
+					UpdateStatusBar(message);
 					break;
 				}
-				case IDs::Message::AllFinished:
+				case IDs::Message::Finished:
 				{
-					UpdateStatusBar(L"Finished");
+					UpdateStatusBar(message);
 					break;
 				}
 				default:
@@ -337,21 +338,40 @@ namespace HashCalcGUI
 			ProcessPathsAsync(paths);
 		}
 
-		void UpdateStatusBar(std::wstring_view status = L"")
+		void UpdateStatusBar(UINT message)
 		{
-			std::wstring displayStatus(status);
+			std::wstring status;
 
-			if (status == L"Processing")
+			switch (message)
 			{
-				int dots = 50 - std::abs(50 - (++_dotCount % 100));
-				displayStatus.append(dots, L'.');
+				case IDs::Message::UpdateProgress:
+				case IDs::Message::UpdateComplete:
+				{
+					status = L"Processing";
+					int dots = 50 - std::abs(50 - (++_dotCount % 100));
+					status.append(dots, L'.');
+					break;
+				}
+				case IDs::Message::UpdateError:
+				{
+					status = L"Error";
+					break;
+				}
+				case IDs::Message::Finished:
+				{
+					const auto now = std::chrono::system_clock::now();
+					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - _startTime);
+					status = L"Finished @ ";
+					status += std::format(L"{}", std::chrono::hh_mm_ss(elapsed));
+					break;
+				}
 			}
 
 			std::wstring text = std::format(
 				L"Processed: {} | Errors: {} | {}",
 				_completedFiles,
 				_errorFiles,
-				displayStatus);
+				status);
 
 			SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
 		}
@@ -567,10 +587,12 @@ namespace HashCalcGUI
 
 			callbacks.OnFinished = [hwnd = _window]()
 			{
-				PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0);
+				PostMessageW(hwnd, IDs::Message::Finished, 0, 0);
 			};
 
 			_workerThread = _calculator.CalculateChecksumsAsync(paths, std::move(callbacks));
+
+			_startTime = std::chrono::system_clock::now();
 		}
 
 		void HandleBrowse()
