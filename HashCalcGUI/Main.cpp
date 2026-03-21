@@ -8,8 +8,9 @@ namespace HashCalcGUI
 	{
 		enum Message : UINT
 		{
-			UpdateHash = WM_APP + 1,
-			UpdateProgress = WM_APP + 2
+			AddDiscoveredFiles = WM_APP + 1,
+			UpdateProgress = WM_APP + 2,
+			UpdateHash = WM_APP + 3
 		};
 
 		enum Command : WORD
@@ -29,6 +30,32 @@ namespace HashCalcGUI
 	class MainWindow
 	{
 	public:
+		struct DiscoveryTaskData
+		{
+			HWND Window;
+			std::vector<std::filesystem::path> TargetPaths;
+		};
+
+		struct DiscoveryResult
+		{
+			std::vector<std::filesystem::path> Files;
+
+			bool Empty() const
+			{
+				return Files.empty();
+			}
+
+			size_t Size() const
+			{
+				return Files.size();
+			}
+
+			void AddFile(const std::filesystem::path& path)
+			{
+				Files.push_back(path);
+			}
+		};
+
 		struct HashTaskData
 		{
 			HWND Window;
@@ -146,14 +173,29 @@ namespace HashCalcGUI
 				_stopSource.request_stop();
 				PostQuitMessage(0);
 				break;
+			case IDs::Message::AddDiscoveredFiles:
+			{
+				std::unique_ptr<DiscoveryResult> data(reinterpret_cast<DiscoveryResult*>(lparam));
+
+				SendMessageW(_treeView, WM_SETREDRAW, FALSE, 0);
+
+				for (const std::filesystem::path& path : data->Files)
+				{
+					AddFileToTree(path);
+				}
+
+				SendMessageW(_treeView, WM_SETREDRAW, TRUE, 0);
+				RedrawWindow(_treeView, nullptr, nullptr, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+
+				UpdateStatusBar();
+				break;
+			}
 			case IDs::Message::UpdateHash:
 			{
 				std::unique_ptr<HashTaskData> data(reinterpret_cast<HashTaskData*>(lparam));
 
-				// Remove the single progress node
 				SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(data->ProgressNode));
 
-				// Insert the calculated hashes
 				for (const std::wstring& algo : data->Algorithms)
 				{
 					TVINSERTSTRUCTW is = { 0 };
@@ -270,17 +312,20 @@ namespace HashCalcGUI
 		void OnDropFiles(HDROP drop)
 		{
 			UINT fileCount = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+			std::vector<std::filesystem::path> paths;
+			paths.reserve(fileCount);
 
 			for (UINT i = 0; i < fileCount; ++i)
 			{
 				UINT length = DragQueryFileW(drop, i, nullptr, 0) + 1;
-				std::wstring buffer(length, '\0');
+				std::wstring buffer(length, L'\0');
 				DragQueryFileW(drop, i, buffer.data(), length);
-
-				ProcessPath(buffer.data());
+				buffer.resize(length - 1);
+				paths.emplace_back(buffer);
 			}
 
 			DragFinish(drop);
+			ProcessPathsAsync(paths);
 		}
 
 		void UpdateStatusBar()
@@ -341,6 +386,55 @@ namespace HashCalcGUI
 			}
 		}
 
+		static VOID CALLBACK DiscoveryWorker(PTP_CALLBACK_INSTANCE, PVOID context)
+		{
+			std::unique_ptr<DiscoveryTaskData> task(static_cast<DiscoveryTaskData*>(context));
+			std::unique_ptr<DiscoveryResult> result = std::make_unique<DiscoveryResult>();
+
+			constexpr size_t BatchSize = 100;
+
+			const auto dispatchBatch = [&]()
+			{
+				PostMessageW(task->Window, IDs::Message::AddDiscoveredFiles, 0, reinterpret_cast<LPARAM>(result.release()));
+				result = std::make_unique<DiscoveryResult>();
+			};
+
+			for (const std::filesystem::path& target : task->TargetPaths)
+			{
+				if (std::filesystem::is_directory(target))
+				{
+					const auto options = std::filesystem::directory_options::skip_permission_denied;
+
+					for (const auto& entry : std::filesystem::recursive_directory_iterator(target, options))
+					{
+						if (entry.is_regular_file())
+						{
+							result->AddFile(entry.path());
+
+							if (result->Size() >= BatchSize)
+							{
+								dispatchBatch();
+							}
+						}
+					}
+				}
+				else if (std::filesystem::is_regular_file(target))
+				{
+					result->AddFile(target);
+
+					if (result->Size() >= BatchSize)
+					{
+						dispatchBatch();
+					}
+				}
+			}
+
+			if (!result->Empty())
+			{
+				dispatchBatch();
+			}
+		}
+
 		static VOID CALLBACK HashWorker(PTP_CALLBACK_INSTANCE, PVOID context)
 		{
 			std::unique_ptr<HashTaskData> data(static_cast<HashTaskData*>(context));
@@ -389,11 +483,6 @@ namespace HashCalcGUI
 
 		void AddFileToTree(const std::filesystem::path& filePath)
 		{
-			if (!std::filesystem::is_regular_file(filePath))
-			{
-				return;
-			}
-
 			const std::filesystem::path folderPath = filePath.parent_path();
 			HTREEITEM folderItem = nullptr;
 
@@ -468,26 +557,14 @@ namespace HashCalcGUI
 			_totalFiles++;
 		}
 
-		void ProcessPath(const std::filesystem::path& targetPath)
+		void ProcessPathsAsync(const std::vector<std::filesystem::path>& paths)
 		{
-			if (std::filesystem::is_directory(targetPath))
-			{
-				const auto rdi = std::filesystem::recursive_directory_iterator(targetPath, std::filesystem::directory_options::skip_permission_denied);
+			auto task = new DiscoveryTaskData{ _window, paths };
 
-				for (const auto& entry : rdi)
-				{
-					if (entry.is_regular_file())
-					{
-						AddFileToTree(entry.path());
-					}
-				}
-			}
-			else
+			if (!TrySubmitThreadpoolCallback(DiscoveryWorker, task, &_threadPool))
 			{
-				AddFileToTree(targetPath);
+				delete task;
 			}
-
-			UpdateStatusBar();
 		}
 
 		void HandleBrowse()
@@ -508,20 +585,23 @@ namespace HashCalcGUI
 
 				ptr += root.native().length() + 1;
 
+				std::vector<std::filesystem::path> paths;
+
 				if (*ptr == L'\0')
 				{
-					ProcessPath(root);
+					paths.emplace_back(root);
 				}
 				else
 				{
 					while (*ptr != L'\0')
 					{
 						std::wstring_view fileName(ptr);
-						ProcessPath(root / fileName);
-
+						paths.emplace_back(root / fileName);
 						ptr += fileName.length() + 1;
 					}
 				}
+
+				ProcessPathsAsync(paths);
 			}
 			else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
 			{
