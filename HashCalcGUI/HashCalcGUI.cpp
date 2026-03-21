@@ -97,7 +97,9 @@ namespace HashCalcGUI
 		HWND _window = nullptr;
 		HWND _treeView = nullptr;
 		HWND _statusBar = nullptr;
-		int _totalFiles = 0;
+		int _completedFiles = 0;
+		int _errorFiles = 0;
+		int _dotCount = -1;
 
 		std::optional<int> _folderIconIndex;
 		std::map<std::wstring, int> _iconCache;
@@ -166,6 +168,7 @@ namespace HashCalcGUI
 					if (_progressNodes.find(data->FilePath) == _progressNodes.end())
 					{
 						AddFileToTree(data->FilePath);
+						UpdateStatusBar(L"Processing");
 					}
 
 					std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
@@ -188,6 +191,8 @@ namespace HashCalcGUI
 					}
 
 					FinalizeFileNode(data->FilePath, data->Hashes, L"");
+					++_completedFiles;
+					UpdateStatusBar(L"Processing");
 					break;
 				}
 				case IDs::Message::UpdateError:
@@ -200,12 +205,13 @@ namespace HashCalcGUI
 					}
 
 					FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
+					++_errorFiles;
+					UpdateStatusBar(L"Error");
 					break;
 				}
 				case IDs::Message::AllFinished:
 				{
-					std::wstring text = std::format(L"Finished. Total files processed: {}", _totalFiles);
-					SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
+					UpdateStatusBar(L"Finished");
 					break;
 				}
 				default:
@@ -316,9 +322,22 @@ namespace HashCalcGUI
 			ProcessPathsAsync(paths);
 		}
 
-		void UpdateStatusBar()
+		void UpdateStatusBar(std::wstring_view status = L"")
 		{
-			std::wstring text = std::format(L"Files discovered: {}", _totalFiles);
+			std::wstring displayStatus(status);
+
+			if (status == L"Processing")
+			{
+				int dots = 50 - std::abs(50 - (++_dotCount % 100));
+				displayStatus.append(dots, L'.');
+			}
+
+			std::wstring text = std::format(
+				L"Processed: {} | Errors: {} | {}",
+				_completedFiles,
+				_errorFiles,
+				displayStatus);
+
 			SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
 		}
 
@@ -445,8 +464,6 @@ namespace HashCalcGUI
 
 				SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(fileItem));
 			}
-
-			_totalFiles++;
 		}
 
 		void FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error)
