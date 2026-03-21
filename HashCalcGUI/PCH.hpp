@@ -12,8 +12,10 @@
 #include <uxtheme.h>
 
 #include <cwctype>
+#include <deque>
 #include <filesystem>
 #include <vector>
 #include <stop_token>
 #include <string>
+#include <thread>
 #include <map>

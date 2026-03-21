@@ -9,8 +9,9 @@ namespace HashCalcGUI
 		enum Message : UINT
 		{
 			AddDiscoveredFiles = WM_APP + 1,
-			UpdateProgress = WM_APP + 2,
-			UpdateHash = WM_APP + 3
+			ProcessPendingFiles,
+			UpdateProgress,
+			UpdateHash
 		};
 
 		enum Command : WORD
@@ -26,6 +27,8 @@ namespace HashCalcGUI
 			StatusBar = 2002
 		};
 	};
+
+	constexpr size_t BatchProcessSize = 1000;
 
 	class MainWindow
 	{
@@ -69,6 +72,13 @@ namespace HashCalcGUI
 
 		bool Create(HINSTANCE instance, int cmdShow)
 		{
+			const DWORD maxThreads = std::min<DWORD>(3, std::thread::hardware_concurrency() - 1);
+
+			_pool = CreateThreadpool(nullptr);
+			SetThreadpoolThreadMaximum(_pool, maxThreads);
+			InitializeThreadpoolEnvironment(&_threadPool);
+			SetThreadpoolCallbackPool(&_threadPool, _pool);
+
 			const wchar_t className[] = L"HashCalcWindow";
 			WNDCLASSW windowClass = { 0 };
 			windowClass.lpfnWndProc = StaticWndProc;
@@ -125,9 +135,11 @@ namespace HashCalcGUI
 		int _totalFiles = 0;
 		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
 		std::stop_source _stopSource;
+		PTP_POOL _pool = nullptr;
 		TP_CALLBACK_ENVIRON _threadPool;
 		std::optional<int> _folderIconIndex;
 		std::map<std::wstring, int> _iconCache;
+		std::deque<std::filesystem::path> _pendingFiles;
 
 		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -171,23 +183,52 @@ namespace HashCalcGUI
 				break;
 			case WM_DESTROY:
 				_stopSource.request_stop();
+				DestroyThreadpoolEnvironment(&_threadPool);
+				CloseThreadpool(_pool);
 				PostQuitMessage(0);
 				break;
 			case IDs::Message::AddDiscoveredFiles:
 			{
 				std::unique_ptr<DiscoveryResult> data(reinterpret_cast<DiscoveryResult*>(lparam));
 
+				_pendingFiles.insert(
+					_pendingFiles.end(),
+					std::make_move_iterator(data->Files.begin()),
+					std::make_move_iterator(data->Files.end())
+				);
+
+				PostMessageW(_window, IDs::Message::ProcessPendingFiles, 0, 0);
+				break;
+			}
+			case IDs::Message::ProcessPendingFiles:
+			{
+				if (_pendingFiles.empty())
+				{
+					break;
+				}
+
 				SendMessageW(_treeView, WM_SETREDRAW, FALSE, 0);
 
-				for (const std::filesystem::path& path : data->Files)
+				size_t processed = 0;
+
+				while (!_pendingFiles.empty() && processed < BatchProcessSize)
 				{
-					AddFileToTree(path);
+					AddFileToTree(_pendingFiles.front());
+					_pendingFiles.pop_front();
+					processed++;
 				}
 
 				SendMessageW(_treeView, WM_SETREDRAW, TRUE, 0);
-				RedrawWindow(_treeView, nullptr, nullptr, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
 
-				UpdateStatusBar();
+				if (!_pendingFiles.empty())
+				{
+					PostMessageW(_window, IDs::Message::ProcessPendingFiles, 0, 0);
+				}
+				else
+				{
+					RedrawWindow(_treeView, nullptr, nullptr, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+					UpdateStatusBar();
+				}
 				break;
 			}
 			case IDs::Message::UpdateHash:
@@ -391,8 +432,6 @@ namespace HashCalcGUI
 			std::unique_ptr<DiscoveryTaskData> task(static_cast<DiscoveryTaskData*>(context));
 			std::unique_ptr<DiscoveryResult> result = std::make_unique<DiscoveryResult>();
 
-			constexpr size_t BatchSize = 100;
-
 			const auto dispatchBatch = [&]()
 			{
 				PostMessageW(task->Window, IDs::Message::AddDiscoveredFiles, 0, reinterpret_cast<LPARAM>(result.release()));
@@ -411,7 +450,7 @@ namespace HashCalcGUI
 						{
 							result->AddFile(entry.path());
 
-							if (result->Size() >= BatchSize)
+							if (result->Size() >= BatchProcessSize)
 							{
 								dispatchBatch();
 							}
@@ -422,7 +461,7 @@ namespace HashCalcGUI
 				{
 					result->AddFile(target);
 
-					if (result->Size() >= BatchSize)
+					if (result->Size() >= BatchProcessSize)
 					{
 						dispatchBatch();
 					}
@@ -469,10 +508,13 @@ namespace HashCalcGUI
 				}
 			}
 
-			if (PostMessageW(data->Window, IDs::Message::UpdateHash, 0, reinterpret_cast<LPARAM>(data.get())))
+			// Spin-wait until the queue has space
+			while (!PostMessageW(data->Window, IDs::Message::UpdateHash, 0, reinterpret_cast<LPARAM>(data.get())))
 			{
-				data.release();
+				Sleep(1);
 			}
+
+			data.release();
 		}
 
 		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const
