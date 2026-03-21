@@ -11,7 +11,9 @@
 #include <array>
 #include <exception>
 #include <filesystem>
+#include <future>
 #include <iostream>
+#include <mutex>
 #include <ranges>
 #include <stop_token>
 #include <string>

@@ -115,22 +115,45 @@ int wmain(int argc, wchar_t* argv[])
 	{
 		HashLib::Calculator hashCalc(selectedAlgorithms);
 
-		if (IsReadableFile(argv[1]))
+		if (IsReadableFile(argv[1]) || IsReadableFolder(argv[1]))
 		{
-			for (const auto& [algo, hash] : hashCalc.CalculateChecksumsFromFile(argv[1], StopSource.get_token()))
+			std::mutex printMutex;
+			std::promise<void> completionPromise;
+
+			HashLib::AsyncCallbacks callbacks;
+
+			callbacks.OnProgress = nullptr;
+
+			callbacks.OnComplete = [&printMutex](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
 			{
-				std::wcout << algo << L'\t' << hash << std::endl;
-			}
-		}
-		else if (IsReadableFolder(argv[1]))
-		{
-			for (const auto& [path, hashes] : hashCalc.CalculateChecksumsFromFolder(argv[1], StopSource.get_token()))
-			{
+				std::lock_guard lock(printMutex);
+
 				for (const auto& [algo, hash] : hashes)
 				{
 					std::wcout << path << L'\t' << algo << L'\t' << hash << std::endl;
 				}
-			}
+			};
+
+			callbacks.OnError = [&printMutex](const std::filesystem::path& path, const std::wstring& error)
+			{
+				std::lock_guard lock(printMutex);
+				std::wcerr << path << L"\tError: " << error << std::endl;
+			};
+
+			callbacks.OnFinished = [&completionPromise]()
+			{
+				completionPromise.set_value();
+			};
+
+			std::vector<std::filesystem::path> paths = HashLib::Strings::SplitPaths(argv[1]);
+			std::jthread worker = hashCalc.CalculateChecksumsAsync(std::move(paths), std::move(callbacks));
+
+			std::stop_callback stopLink(StopSource.get_token(), [&worker]()
+			{
+				worker.request_stop();
+			});
+
+			completionPromise.get_future().wait();
 		}
 		else
 		{

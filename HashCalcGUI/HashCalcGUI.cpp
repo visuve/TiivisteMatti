@@ -8,10 +8,10 @@ namespace HashCalcGUI
 	{
 		enum Message : UINT
 		{
-			AddDiscoveredFiles = WM_APP + 1,
-			ProcessPendingFiles,
-			UpdateProgress,
-			UpdateHash
+			UpdateProgress = WM_APP + 1,
+			UpdateComplete,
+			UpdateError,
+			AllFinished
 		};
 
 		enum Command : WORD
@@ -28,57 +28,24 @@ namespace HashCalcGUI
 		};
 	};
 
-	constexpr size_t BatchProcessSize = 1000;
+	struct ProgressData
+	{
+		std::filesystem::path FilePath;
+		float Percentage;
+	};
+
+	struct ResultData
+	{
+		std::filesystem::path FilePath;
+		std::map<std::wstring, std::wstring> Hashes;
+		std::wstring ErrorMessage;
+	};
 
 	class MainWindow
 	{
 	public:
-		struct DiscoveryTaskData
-		{
-			HWND Window;
-			std::vector<std::filesystem::path> TargetPaths;
-		};
-
-		struct DiscoveryResult
-		{
-			std::vector<std::filesystem::path> Files;
-
-			bool Empty() const
-			{
-				return Files.empty();
-			}
-
-			size_t Size() const
-			{
-				return Files.size();
-			}
-
-			void AddFile(const std::filesystem::path& path)
-			{
-				Files.push_back(path);
-			}
-		};
-
-		struct HashTaskData
-		{
-			HWND Window;
-			HTREEITEM FileNode;
-			HTREEITEM ProgressNode;
-			std::filesystem::path FilePath;
-			std::vector<std::wstring> Algorithms;
-			std::map<std::wstring, std::wstring> Results;
-			std::stop_token StopToken;
-		};
-
 		bool Create(HINSTANCE instance, int cmdShow)
 		{
-			const DWORD maxThreads = std::min<DWORD>(3, std::thread::hardware_concurrency() - 1);
-
-			_pool = CreateThreadpool(nullptr);
-			SetThreadpoolThreadMaximum(_pool, maxThreads);
-			InitializeThreadpoolEnvironment(&_threadPool);
-			SetThreadpoolCallbackPool(&_threadPool, _pool);
-
 			const wchar_t className[] = L"HashCalcWindow";
 			WNDCLASSW windowClass = { 0 };
 			windowClass.lpfnWndProc = StaticWndProc;
@@ -133,13 +100,16 @@ namespace HashCalcGUI
 		HWND _treeView = nullptr;
 		HWND _statusBar = nullptr;
 		int _totalFiles = 0;
-		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
-		std::stop_source _stopSource;
-		PTP_POOL _pool = nullptr;
-		TP_CALLBACK_ENVIRON _threadPool;
+
 		std::optional<int> _folderIconIndex;
 		std::map<std::wstring, int> _iconCache;
-		std::deque<std::filesystem::path> _pendingFiles;
+
+		std::map<std::filesystem::path, HTREEITEM> _folderNodes;
+		std::map<std::filesystem::path, HTREEITEM> _fileNodes;
+		std::map<std::filesystem::path, HTREEITEM> _progressNodes;
+
+		HashLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
+		std::jthread _workerThread;
 
 		static LRESULT CALLBACK StaticWndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 		{
@@ -182,88 +152,60 @@ namespace HashCalcGUI
 				OnDropFiles(reinterpret_cast<HDROP>(wparam));
 				break;
 			case WM_DESTROY:
-				_stopSource.request_stop();
-				DestroyThreadpoolEnvironment(&_threadPool);
-				CloseThreadpool(_pool);
+				if (_workerThread.joinable())
+				{
+					_workerThread.request_stop();
+				}
 				PostQuitMessage(0);
 				break;
-			case IDs::Message::AddDiscoveredFiles:
-			{
-				std::unique_ptr<DiscoveryResult> data(reinterpret_cast<DiscoveryResult*>(lparam));
 
-				_pendingFiles.insert(
-					_pendingFiles.end(),
-					std::make_move_iterator(data->Files.begin()),
-					std::make_move_iterator(data->Files.end())
-				);
-
-				PostMessageW(_window, IDs::Message::ProcessPendingFiles, 0, 0);
-				break;
-			}
-			case IDs::Message::ProcessPendingFiles:
-			{
-				if (_pendingFiles.empty())
-				{
-					break;
-				}
-
-				SendMessageW(_treeView, WM_SETREDRAW, FALSE, 0);
-
-				size_t processed = 0;
-
-				while (!_pendingFiles.empty() && processed < BatchProcessSize)
-				{
-					AddFileToTree(_pendingFiles.front());
-					_pendingFiles.pop_front();
-					processed++;
-				}
-
-				SendMessageW(_treeView, WM_SETREDRAW, TRUE, 0);
-
-				if (!_pendingFiles.empty())
-				{
-					PostMessageW(_window, IDs::Message::ProcessPendingFiles, 0, 0);
-				}
-				else
-				{
-					RedrawWindow(_treeView, nullptr, nullptr, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
-					UpdateStatusBar();
-				}
-				break;
-			}
-			case IDs::Message::UpdateHash:
-			{
-				std::unique_ptr<HashTaskData> data(reinterpret_cast<HashTaskData*>(lparam));
-
-				SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(data->ProgressNode));
-
-				for (const std::wstring& algo : data->Algorithms)
-				{
-					TVINSERTSTRUCTW is = { 0 };
-					is.hParent = data->FileNode;
-					is.hInsertAfter = TVI_LAST;
-					is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-					is.item.iImage = I_IMAGENONE;
-					is.item.iSelectedImage = I_IMAGENONE;
-					is.item.pszText = data->Results[algo].data();
-
-					SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
-				}
-				break;
-			}
 			case IDs::Message::UpdateProgress:
 			{
-				auto data = reinterpret_cast<HashTaskData*>(wparam);
-				float percentage = std::bit_cast<float>(static_cast<uint32_t>(lparam));
+				std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
 
-				std::wstring text = std::format(L"Calculating... {:.2f}%", percentage);
+				if (_progressNodes.find(data->FilePath) == _progressNodes.end())
+				{
+					AddFileToTree(data->FilePath);
+				}
+
+				std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
 
 				TVITEMW tvi = { 0 };
 				tvi.mask = TVIF_TEXT;
-				tvi.hItem = data->ProgressNode;
+				tvi.hItem = _progressNodes[data->FilePath];
 				tvi.pszText = text.data();
 
 				SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+				break;
+			}
+			case IDs::Message::UpdateComplete:
+			{
+				std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+				if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+				{
+					AddFileToTree(data->FilePath); // Failsafe for 0-byte files
+				}
+
+				FinalizeFileNode(data->FilePath, data->Hashes, L"");
+				break;
+			}
+			case IDs::Message::UpdateError:
+			{
+				std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+				if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+				{
+					AddFileToTree(data->FilePath);
+				}
+
+				FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
+				break;
+			}
+			case IDs::Message::AllFinished:
+			{
+				std::wstring text = std::format(L"Finished. Total files processed: {}", _totalFiles);
+				SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
 				break;
 			}
 			default:
@@ -274,8 +216,6 @@ namespace HashCalcGUI
 
 		void OnCreate()
 		{
-			InitializeThreadpoolEnvironment(&_threadPool);
-
 			_treeView = CreateWindowExW(WS_EX_CLIENTEDGE, WC_TREEVIEWW, L"",
 				WS_CHILD | WS_VISIBLE | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
 				0, 0, 0, 0, _window, reinterpret_cast<HMENU>(IDs::TreeView), GetModuleHandle(nullptr), nullptr);
@@ -371,7 +311,7 @@ namespace HashCalcGUI
 
 		void UpdateStatusBar()
 		{
-			std::wstring text = std::format(L"Files loaded: {}", _totalFiles);
+			std::wstring text = std::format(L"Files discovered: {}", _totalFiles);
 			SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
 		}
 
@@ -427,96 +367,6 @@ namespace HashCalcGUI
 			}
 		}
 
-		static VOID CALLBACK DiscoveryWorker(PTP_CALLBACK_INSTANCE, PVOID context)
-		{
-			std::unique_ptr<DiscoveryTaskData> task(static_cast<DiscoveryTaskData*>(context));
-			std::unique_ptr<DiscoveryResult> result = std::make_unique<DiscoveryResult>();
-
-			const auto dispatchBatch = [&]()
-			{
-				PostMessageW(task->Window, IDs::Message::AddDiscoveredFiles, 0, reinterpret_cast<LPARAM>(result.release()));
-				result = std::make_unique<DiscoveryResult>();
-			};
-
-			for (const std::filesystem::path& target : task->TargetPaths)
-			{
-				if (std::filesystem::is_directory(target))
-				{
-					const auto options = std::filesystem::directory_options::skip_permission_denied;
-
-					for (const auto& entry : std::filesystem::recursive_directory_iterator(target, options))
-					{
-						if (entry.is_regular_file())
-						{
-							result->AddFile(entry.path());
-
-							if (result->Size() >= BatchProcessSize)
-							{
-								dispatchBatch();
-							}
-						}
-					}
-				}
-				else if (std::filesystem::is_regular_file(target))
-				{
-					result->AddFile(target);
-
-					if (result->Size() >= BatchProcessSize)
-					{
-						dispatchBatch();
-					}
-				}
-			}
-
-			if (!result->Empty())
-			{
-				dispatchBatch();
-			}
-		}
-
-		static VOID CALLBACK HashWorker(PTP_CALLBACK_INSTANCE, PVOID context)
-		{
-			std::unique_ptr<HashTaskData> data(static_cast<HashTaskData*>(context));
-
-			try
-			{
-				const auto progressCallback = [rawData = data.get()](float percentage)
-				{
-					uint32_t bits = std::bit_cast<uint32_t>(percentage);
-					PostMessageW(rawData->Window, IDs::Message::UpdateProgress, reinterpret_cast<WPARAM>(rawData), static_cast<LPARAM>(bits));
-				};
-
-				HashLib::Calculator calc(data->Algorithms);
-				std::map<std::wstring, std::wstring> hashes =
-					calc.CalculateChecksumsFromFile(
-						data->FilePath,
-						data->StopToken,
-						progressCallback);
-
-				for (const auto& [algo, hash] : hashes)
-				{
-					data->Results[algo] = std::format(L"{}: {}", algo, hash);
-				}
-			}
-			catch (const std::exception& e)
-			{
-				std::wstring error = HashLib::Strings::ToWide(e.what());
-
-				for (const auto& algo : data->Algorithms)
-				{
-					data->Results[algo] = std::format(L"{}: Error: {}", algo, error);
-				}
-			}
-
-			// Spin-wait until the queue has space
-			while (!PostMessageW(data->Window, IDs::Message::UpdateHash, 0, reinterpret_cast<LPARAM>(data.get())))
-			{
-				Sleep(1);
-			}
-
-			data.release();
-		}
-
 		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const
 		{
 			LRESULT result = SendMessageW(_treeView, TVM_INSERTITEMW, 0, reinterpret_cast<LPARAM>(&is));
@@ -561,21 +411,12 @@ namespace HashCalcGUI
 			insertStructFile.item.iSelectedImage = fileIcon;
 
 			HTREEITEM fileItem = InsertTreeItem(insertStructFile);
+			_fileNodes[filePath] = fileItem;
 
 			SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(folderItem));
 
 			if (fileItem != nullptr)
 			{
-				auto taskData = new HashTaskData{
-					_window,
-					fileItem,
-					nullptr,
-					filePath,
-					{L"MD5", L"SHA1", L"SHA256"},
-					{},
-					_stopSource.get_token()
-				};
-
 				TVINSERTSTRUCTW insertStructHash = { 0 };
 				insertStructHash.hParent = fileItem;
 				insertStructHash.hInsertAfter = TVI_LAST;
@@ -586,12 +427,7 @@ namespace HashCalcGUI
 				std::wstring pendingText = L"Calculating... 0.00%";
 				insertStructHash.item.pszText = pendingText.data();
 
-				taskData->ProgressNode = InsertTreeItem(insertStructHash);
-
-				if (!TrySubmitThreadpoolCallback(HashWorker, taskData, &_threadPool))
-				{
-					delete taskData;
-				}
+				_progressNodes[filePath] = InsertTreeItem(insertStructHash);
 
 				SendMessageW(_treeView, TVM_EXPAND, TVE_EXPAND, reinterpret_cast<LPARAM>(fileItem));
 			}
@@ -599,14 +435,99 @@ namespace HashCalcGUI
 			_totalFiles++;
 		}
 
+		void FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error)
+		{
+			auto progIt = _progressNodes.find(filePath);
+			auto fileIt = _fileNodes.find(filePath);
+
+			if (progIt != _progressNodes.end() && fileIt != _fileNodes.end())
+			{
+				SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(progIt->second));
+				_progressNodes.erase(progIt);
+
+				if (!error.empty())
+				{
+					TVINSERTSTRUCTW is = { 0 };
+					is.hParent = fileIt->second;
+					is.hInsertAfter = TVI_LAST;
+					is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+					is.item.iImage = I_IMAGENONE;
+					is.item.iSelectedImage = I_IMAGENONE;
+
+					std::wstring errText = L"Error: " + error;
+					is.item.pszText = errText.data();
+
+					InsertTreeItem(is);
+				}
+				else
+				{
+					for (const auto& [algo, hash] : hashes)
+					{
+						TVINSERTSTRUCTW is = { 0 };
+						is.hParent = fileIt->second;
+						is.hInsertAfter = TVI_LAST;
+						is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+						is.item.iImage = I_IMAGENONE;
+						is.item.iSelectedImage = I_IMAGENONE;
+
+						std::wstring resultText = std::format(L"{}: {}", algo, hash);
+						is.item.pszText = resultText.data();
+
+						InsertTreeItem(is);
+					}
+				}
+			}
+		}
+
 		void ProcessPathsAsync(const std::vector<std::filesystem::path>& paths)
 		{
-			auto task = new DiscoveryTaskData{ _window, paths };
-
-			if (!TrySubmitThreadpoolCallback(DiscoveryWorker, task, &_threadPool))
+			if (_workerThread.joinable())
 			{
-				delete task;
+				_workerThread.request_stop();
+				_workerThread.join();
 			}
+
+			HashLib::AsyncCallbacks callbacks;
+
+			callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
+			{
+				auto data = new ProgressData{ path, percentage };
+
+				while (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					Sleep(1);
+				}
+			};
+
+			callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
+			{
+				auto data = new ResultData{ path, hashes, L"" };
+
+				while (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					Sleep(1);
+				}
+			};
+
+			callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
+			{
+				auto data = new ResultData{ path, {}, errorMsg };
+
+				while (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					Sleep(1);
+				}
+			};
+
+			callbacks.OnFinished = [hwnd = _window]()
+			{
+				while (!PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0))
+				{
+					Sleep(1);
+				}
+			};
+
+			_workerThread = _calculator.CalculateChecksumsAsync(paths, std::move(callbacks));
 		}
 
 		void HandleBrowse()

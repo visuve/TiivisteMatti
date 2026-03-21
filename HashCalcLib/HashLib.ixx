@@ -40,11 +40,23 @@ export namespace HashLib
 	using FileProgressCallback = std::function<void(float percent)>;
 	using FolderProgressCallback = std::function<void(const std::filesystem::path& path, float percent)>;
 
+	struct AsyncCallbacks
+	{
+		std::function<void(const std::filesystem::path&, float)> OnProgress;
+		std::function<void(const std::filesystem::path&, const std::map<std::wstring, std::wstring>&)> OnComplete;
+		std::function<void(const std::filesystem::path&, const std::wstring&)> OnError;
+		std::function<void()> OnFinished;
+	};
+
 	class Calculator
 	{
 	public:
 		Calculator(const std::vector<std::wstring>& algorithms);
 		~Calculator();
+
+		std::jthread CalculateChecksumsAsync(
+			std::vector<std::filesystem::path> paths,
+			AsyncCallbacks callbacks) const;
 
 		std::map<std::wstring, std::wstring> CalculateChecksums(std::span<const uint8_t> data) const;
 		std::map<std::wstring, std::wstring> CalculateChecksums(std::wstring_view data) const;
@@ -60,6 +72,18 @@ export namespace HashLib
 			FolderProgressCallback callback = nullptr) const;
 
 	private:
+		static void ProcessFileAsync(
+			std::stop_token stopToken,
+			const Calculator* self,
+			const std::filesystem::path& path,
+			const AsyncCallbacks& callbacks);
+
+		static void AsyncWorker(
+			std::stop_token stopToken,
+			const Calculator* self,
+			std::vector<std::filesystem::path> paths,
+			AsyncCallbacks callbacks);
+
 		std::vector<std::pair<std::wstring, BCRYPT_ALG_HANDLE>> _providers;
 	};
 }
@@ -100,10 +124,10 @@ export namespace HashLib::Strings
 		return result;
 	}
 
-	template<typename C>
-	std::vector<std::basic_string<C>> Split(std::basic_string_view<C> text, C separator)
+	template<typename T, typename C>
+	std::vector<T> Split(std::basic_string_view<C> text, C separator)
 	{
-		std::vector<std::basic_string<C>> result;
+		std::vector<T> result;
 
 		for (auto&& part : text | std::views::split(separator))
 		{
@@ -121,6 +145,11 @@ export namespace HashLib::Strings
 
 	std::vector<std::wstring> Split(std::wstring_view text, char separator = ',')
 	{
-		return Split<wchar_t>(text, separator);
+		return Split<std::wstring, wchar_t>(text, separator);
+	}
+
+	std::vector<std::filesystem::path> SplitPaths(std::wstring_view text, char separator = ',')
+	{
+		return Split<std::filesystem::path, wchar_t>(text, separator);
 	}
 }

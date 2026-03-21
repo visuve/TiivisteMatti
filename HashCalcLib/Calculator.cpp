@@ -317,6 +317,17 @@ namespace HashLib
 		}
 	}
 
+	std::jthread Calculator::CalculateChecksumsAsync(
+		std::vector<std::filesystem::path> paths,
+		AsyncCallbacks callbacks) const
+	{
+		return std::jthread(
+			&Calculator::AsyncWorker,
+			this,
+			std::move(paths),
+			std::move(callbacks));
+	}
+
 	std::map<std::wstring, std::wstring> Calculator::CalculateChecksums(std::span<const uint8_t> data) const
 	{
 		std::map<std::wstring, std::wstring> results;
@@ -439,5 +450,86 @@ namespace HashLib
 		}
 
 		return results;
+	}
+
+	void Calculator::ProcessFileAsync(
+		std::stop_token stopToken,
+		const Calculator* self,
+		const std::filesystem::path& path,
+		const AsyncCallbacks& callbacks)
+	{
+		if (stopToken.stop_requested())
+		{
+			return;
+		}
+
+		try
+		{
+			auto progressHook = [&](float percent)
+			{
+				if (callbacks.OnProgress)
+				{
+					callbacks.OnProgress(path, percent);
+				}
+			};
+
+			auto results = self->CalculateChecksumsFromFile(path, stopToken, progressHook);
+
+			if (callbacks.OnComplete && !stopToken.stop_requested())
+			{
+				callbacks.OnComplete(path, results);
+			}
+		}
+		catch (const std::exception& e)
+		{
+			if (callbacks.OnError && !stopToken.stop_requested())
+			{
+				callbacks.OnError(path, Strings::ToWide(e.what()));
+			}
+		}
+	}
+
+	void Calculator::AsyncWorker(
+		std::stop_token stopToken,
+		const Calculator* self,
+		std::vector<std::filesystem::path> paths,
+		AsyncCallbacks callbacks)
+	{
+		for (const auto& target : paths)
+		{
+			if (stopToken.stop_requested())
+			{
+				return;
+			}
+
+			std::error_code ec;
+
+			if (std::filesystem::is_directory(target, ec))
+			{
+				const auto options = std::filesystem::directory_options::skip_permission_denied;
+
+				for (const auto& entry : std::filesystem::recursive_directory_iterator(target, options, ec))
+				{
+					if (stopToken.stop_requested())
+					{
+						return;
+					}
+
+					if (entry.is_regular_file(ec))
+					{
+						ProcessFileAsync(stopToken, self, entry.path(), callbacks);
+					}
+				}
+			}
+			else if (std::filesystem::is_regular_file(target, ec))
+			{
+				ProcessFileAsync(stopToken, self, target, callbacks);
+			}
+		}
+
+		if (callbacks.OnFinished && !stopToken.stop_requested())
+		{
+			callbacks.OnFinished();
+		}
 	}
 }
