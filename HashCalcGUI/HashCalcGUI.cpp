@@ -504,42 +504,39 @@ namespace HashCalcGUI
 			HashLib::AsyncCallbacks callbacks;
 
 			callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
-				{
-					auto data = new ProgressData{ path, percentage };
+			{
+				auto data = new ProgressData{ path, percentage };
 
-					while (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
-					{
-						Sleep(1);
-					}
-				};
+				if (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					delete data;
+				}
+			};
 
 			callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
-				{
-					auto data = new ResultData{ path, hashes, L"" };
+			{
+				auto data = new ResultData{ path, hashes, L"" };
 
-					while (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
-					{
-						Sleep(1);
-					}
-				};
+				if (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					delete data;
+				}
+			};
 
 			callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
-				{
-					auto data = new ResultData{ path, {}, errorMsg };
+			{
+				auto data = new ResultData{ path, {}, errorMsg };
 
-					while (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
-					{
-						Sleep(1);
-					}
-				};
+				if (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
+				{
+					delete data;
+				}
+			};
 
 			callbacks.OnFinished = [hwnd = _window]()
-				{
-					while (!PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0))
-					{
-						Sleep(1);
-					}
-				};
+			{
+				PostMessageW(hwnd, IDs::Message::AllFinished, 0, 0);
+			};
 
 			_workerThread = _calculator.CalculateChecksumsAsync(paths, std::move(callbacks));
 		}
