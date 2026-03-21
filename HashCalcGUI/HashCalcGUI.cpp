@@ -82,6 +82,21 @@ namespace HashCalcGUI
 
 		int Run()
 		{
+			if (__argc > 1)
+			{
+				std::vector<std::filesystem::path> paths;
+
+				for (size_t i = 1; i < __argc; ++i)
+				{
+					paths.emplace_back(__wargv[i]);
+				}
+
+				if (!paths.empty())
+				{
+					ProcessPathsAsync(paths);
+				}
+			}
+
 			MSG message = { 0 };
 
 			while (GetMessageW(&message, nullptr, 0, 0))
