@@ -1,4 +1,5 @@
 #include "PCH.hpp"
+#include "../Version.h"
 
 import HashLib;
 
@@ -62,12 +63,14 @@ namespace HashCalcCLI
 
 	void PrintUsage(const std::filesystem::path& exePath)
 	{
-		std::wcerr << L"HashCalc v0.1" << std::endl;
-		std::wcerr << L"Invalid arguments. Usage:" << std::endl;
+		std::wcerr << L"HashCalc v" << HashLib::Strings::ToWide(HASHCALC_VERSION) << std::endl;
+		std::wcerr << L"A command-line utility for calculating file checksums using Windows CNG API." << std::endl;
+		std::wcerr << L"Git commit hash: " << HashLib::Strings::ToWide(HASHCALC_COMMIT_HASH) << std::endl;
+		std::wcerr << L"\nUsage:" << std::endl;
 		std::wcerr << exePath << " <string>" << std::endl;
-		std::wcerr << exePath << " X:\\Path\\To\\File" << std::endl;
+		std::wcerr << exePath << " X:\\Path\\To\\FileOrFolder" << std::endl;
 		std::wcerr << exePath << " <string> <algorithm>" << std::endl;
-		std::wcerr << exePath << " X:\\Path\\To\\File <algorithm>" << std::endl;
+		std::wcerr << exePath << " X:\\Path\\To\\FileOrFolder <algorithm>" << std::endl;
 		std::wcerr << L"Currently supported algorithms: " <<
 			HashLib::Strings::Join(SupportedAlgorithms) << std::endl;
 	}

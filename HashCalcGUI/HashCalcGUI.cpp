@@ -1,5 +1,6 @@
 #include "PCH.hpp"
 #include "Resources.h"
+#include "../Version.h"
 
 import HashLib;
 
@@ -370,15 +371,20 @@ namespace HashCalcGUI
 		{
 			switch (id)
 			{
-			case IDs::FileBrowse:
-				HandleBrowse();
-				break;
-			case IDs::FileExit:
-				SendMessageW(_window, WM_CLOSE, 0, 0);
-				break;
-			case IDs::HelpAbout:
-				MessageBoxW(_window, UiStrings.at(IDs::AboutText).c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
-				break;
+				case IDs::FileBrowse:
+					HandleBrowse();
+					break;
+				case IDs::FileExit:
+					SendMessageW(_window, WM_CLOSE, 0, 0);
+					break;
+				case IDs::HelpAbout:
+				{
+					const std::wstring wideVersion = HashLib::Strings::ToWide(HASHCALC_VERSION);
+					const std::wstring wideHash = HashLib::Strings::ToWide(HASHCALC_COMMIT_HASH);
+					const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
+					MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
+					break;
+				}
 			}
 		}
 

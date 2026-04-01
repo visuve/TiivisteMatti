@@ -7,8 +7,12 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v6
-    - uses: microsoft/setup-msbuild@v2
+    - uses: microsoft/setup-msbuild@v3
     - uses: darenm/Setup-VSTest@v1.2
+
+    - name: Version
+      run: |
+        (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to be set in a build pipeline", "${{ github.sha }}") | Set-Content "Version.h"
 
     - name: Compile
       run: |

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.4.11612.150 stable
+VisualStudioVersion = 18.4.11612.150
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{BA33CAF0-D18B-4F28-B943-BE34C2CBB594}"
 	ProjectSection(SolutionItems) = preProject
@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		HashCalc.props = HashCalc.props
 		.github\workflows\msvc.yml = .github\workflows\msvc.yml
 		ReadMe.md = ReadMe.md
+		Version.h = Version.h
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcLib", "HashCalcLib\HashCalcLib.vcxproj", "{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}"
