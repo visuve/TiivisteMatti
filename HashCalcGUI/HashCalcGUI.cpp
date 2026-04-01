@@ -1,4 +1,5 @@
 #include "PCH.hpp"
+#include "Resources.h"
 
 import HashLib;
 
@@ -6,6 +7,27 @@ namespace HashCalcGUI
 {
 	namespace IDs
 	{
+		enum String : UINT
+		{
+			MenuFile = IDS_MenuFile,
+			MenuFileBrowse = IDS_MenuFileBrowse,
+			MenuFileExit = IDS_MenuFileExit,
+			MenuHelp = IDS_MenuHelp,
+			MenuHelpAbout = IDS_MenuHelpAbout,
+			StatusReady = IDS_StatusReady,
+			StatusProcessing = IDS_StatusProcessing,
+			StatusFinished = IDS_StatusFinished,
+			StatusError = IDS_StatusError,
+			StatusProcessed = IDS_StatusProcessed,
+			TreeCalculating = IDS_TreeCalculating,
+			WindowTitle = IDS_WindowTitle,
+			AboutTitle = IDS_AboutTitle,
+			AboutText = IDS_AboutText,
+			BrowseTitle = IDS_BrowseTitle,
+			ErrorBufferLimit = IDS_ErrorBufferLimit,
+			ErrorTitle = IDS_ErrorTitle
+		};
+
 		enum Message : UINT
 		{
 			UpdateProgress = WM_APP + 1,
@@ -41,6 +63,31 @@ namespace HashCalcGUI
 		std::wstring ErrorMessage;
 	};
 
+	std::wstring LoadResourceString(UINT id)
+	{
+		wchar_t* stringPtr = nullptr;
+
+		int length = LoadStringW(GetModuleHandleW(nullptr), id, reinterpret_cast<LPWSTR>(&stringPtr), 0);
+
+		if (length == 0)
+		{
+			throw std::system_error(GetLastError(), std::system_category(),
+				std::format("Failed to load string resource ID: {}", id));
+		}
+
+		return std::wstring(stringPtr, length);
+	}
+
+	std::map<UINT, std::wstring> UiStrings;
+
+	void InitializeStrings()
+	{
+		for (UINT id = IDS_MenuFile; id <= IDS_ErrorTitle; ++id)
+		{
+			UiStrings[id] = LoadResourceString(id);
+		}
+	}
+
 	class MainWindow
 	{
 	public:
@@ -60,7 +107,7 @@ namespace HashCalcGUI
 			_window = CreateWindowExW(
 				0,
 				className,
-				L"Hash Calculator",
+				UiStrings.at(IDs::WindowTitle).c_str(),
 				WS_OVERLAPPEDWINDOW,
 				CW_USEDEFAULT,
 				CW_USEDEFAULT,
@@ -194,7 +241,7 @@ namespace HashCalcGUI
 						UpdateStatusBar(message);
 					}
 
-					std::wstring text = std::format(L"Calculating... {:.2f}%", data->Percentage);
+					std::wstring text = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(data->Percentage));
 
 					TVITEMW tvi = { 0 };
 					tvi.mask = TVIF_TEXT;
@@ -246,13 +293,31 @@ namespace HashCalcGUI
 			catch (const std::exception& e)
 			{
 				std::wstring errorMsg = HashLib::Strings::ToWide(e.what());
-				MessageBoxW(_window, errorMsg.c_str(), L"Application Error", MB_OK | MB_ICONERROR);
+				MessageBoxW(_window, errorMsg.c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_OK | MB_ICONERROR);
 			}
 
 			return 0;
 		}
 
-		void OnCreate()
+		void CreateMainMenu()
+		{
+			HMENU menu = CreateMenu();
+			HMENU fileMenu = CreatePopupMenu();
+			HMENU helpMenu = CreatePopupMenu();
+
+			AppendMenuW(fileMenu, MF_STRING, IDs::FileBrowse, UiStrings.at(IDs::MenuFileBrowse).c_str());
+			AppendMenuW(fileMenu, MF_SEPARATOR, 0, nullptr);
+			AppendMenuW(fileMenu, MF_STRING, IDs::FileExit, UiStrings.at(IDs::MenuFileExit).c_str());
+
+			AppendMenuW(helpMenu, MF_STRING, IDs::HelpAbout, UiStrings.at(IDs::MenuHelpAbout).c_str());
+
+			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), UiStrings.at(IDs::MenuFile).c_str());
+			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(helpMenu), UiStrings.at(IDs::MenuHelp).c_str());
+
+			SetMenu(_window, menu);
+		}
+
+		void CreateTreeView()
 		{
 			_treeView = CreateWindowExW(WS_EX_CLIENTEDGE, WC_TREEVIEWW, L"",
 				WS_CHILD | WS_VISIBLE | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
@@ -264,37 +329,26 @@ namespace HashCalcGUI
 			HIMAGELIST imageList = reinterpret_cast<HIMAGELIST>(SHGetFileInfoW(L"C:\\", 0, &fileInfo, sizeof(fileInfo), SHGFI_SYSICONINDEX | SHGFI_SMALLICON));
 			SendMessageW(_treeView, TVM_SETIMAGELIST, TVSIL_NORMAL, reinterpret_cast<LPARAM>(imageList));
 
+			HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+			SendMessageW(_treeView, WM_SETFONT, reinterpret_cast<WPARAM>(font), MAKELPARAM(FALSE, 0));
+		}
+
+		void OnCreate()
+		{
+			CreateTreeView();
+			CreateMainMenu();
+
 			_statusBar = CreateWindowExW(
 				0,
 				STATUSCLASSNAMEW,
-				L"Ready. Drag & drop files or folders to initiate hash calculation!",
+				UiStrings.at(IDs::StatusReady).c_str(), // Localized initial state
 				WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
-				0,
-				0,
-				0,
-				0,
-				_window,
+				0, 0, 0, 0, _window,
 				reinterpret_cast<HMENU>(IDs::StatusBar),
-				GetModuleHandle(nullptr),
-				nullptr);
+				GetModuleHandle(nullptr), nullptr);
 
 			HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-			SendMessageW(_treeView, WM_SETFONT, reinterpret_cast<WPARAM>(font), MAKELPARAM(FALSE, 0));
 			SendMessageW(_statusBar, WM_SETFONT, reinterpret_cast<WPARAM>(font), MAKELPARAM(FALSE, 0));
-
-			HMENU menu = CreateMenu();
-			HMENU fileMenu = CreatePopupMenu();
-			HMENU helpMenu = CreatePopupMenu();
-
-			AppendMenuW(fileMenu, MF_STRING, IDs::FileBrowse, L"Browse");
-			AppendMenuW(fileMenu, MF_SEPARATOR, 0, nullptr);
-			AppendMenuW(fileMenu, MF_STRING, IDs::FileExit, L"Exit");
-
-			AppendMenuW(helpMenu, MF_STRING, IDs::HelpAbout, L"About");
-
-			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), L"File");
-			AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(helpMenu), L"Help");
-			SetMenu(_window, menu);
 
 			DragAcceptFiles(_window, TRUE);
 		}
@@ -323,7 +377,7 @@ namespace HashCalcGUI
 				SendMessageW(_window, WM_CLOSE, 0, 0);
 				break;
 			case IDs::HelpAbout:
-				MessageBoxW(_window, L"Hash Calculator v1.0\n\nCopyright (c) visuve 2026", L"About", MB_OK | MB_ICONINFORMATION);
+				MessageBoxW(_window, UiStrings.at(IDs::AboutText).c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
 				break;
 			}
 		}
@@ -356,31 +410,28 @@ namespace HashCalcGUI
 				case IDs::Message::UpdateProgress:
 				case IDs::Message::UpdateComplete:
 				{
-					status = L"Processing";
+					status = UiStrings.at(IDs::StatusProcessing);
 					int dots = 50 - std::abs(50 - (++_dotCount % 100));
 					status.append(dots, L'.');
 					break;
 				}
 				case IDs::Message::UpdateError:
 				{
-					status = L"Error";
+					status = UiStrings.at(IDs::StatusError);
 					break;
 				}
 				case IDs::Message::Finished:
 				{
 					const auto now = std::chrono::system_clock::now();
 					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - _startTime);
-					status = L"Finished @ ";
-					status += std::format(L"{}", std::chrono::hh_mm_ss(elapsed));
+					status = std::format(L"{} {}", UiStrings.at(IDs::StatusFinished), std::chrono::hh_mm_ss(elapsed));
 					break;
 				}
 			}
 
-			std::wstring text = std::format(
-				L"Processed: {} | Errors: {} | {}",
-				_completedFiles,
-				_errorFiles,
-				status);
+			std::wstring text = std::vformat(
+				UiStrings.at(IDs::StatusProcessed),
+				std::make_wformat_args(_completedFiles, _errorFiles, status));
 
 			SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
 		}
@@ -501,7 +552,8 @@ namespace HashCalcGUI
 				insertStructHash.item.iImage = I_IMAGENONE;
 				insertStructHash.item.iSelectedImage = I_IMAGENONE;
 
-				std::wstring pendingText = L"Calculating... 0.00%";
+				float initialPercentage = 0.0f;
+				std::wstring pendingText = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(initialPercentage));
 				insertStructHash.item.pszText = pendingText.data();
 
 				_progressNodes[filePath] = InsertTreeItem(insertStructHash);
@@ -529,7 +581,7 @@ namespace HashCalcGUI
 					is.item.iImage = I_IMAGENONE;
 					is.item.iSelectedImage = I_IMAGENONE;
 
-					std::wstring errText = L"Error: " + error;
+					std::wstring errText = std::format(L"{}: {}", UiStrings.at(IDs::StatusError), error);
 					is.item.pszText = errText.data();
 
 					InsertTreeItem(is);
@@ -652,7 +704,7 @@ namespace HashCalcGUI
 			}
 			else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
 			{
-				MessageBoxW(_window, L"Buffer limit exceeded. Select fewer files.", L"Error", MB_ICONERROR);
+				MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
 			}
 		}
 	};
@@ -660,8 +712,14 @@ namespace HashCalcGUI
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 {
+	// Uncomment to force locale to something:
+	// SetThreadUILanguage(MAKELANGID(LANG_FINNISH, SUBLANG_DEFAULT));
+	// SetThreadUILanguage(MAKELANGID(LANG_SWEDISH, SUBLANG_DEFAULT));
+
 	try
 	{
+		HashCalcGUI::InitializeStrings();
+
 		INITCOMMONCONTROLSEX initCtrl = { 0 };
 		initCtrl.dwSize = sizeof(INITCOMMONCONTROLSEX);
 		initCtrl.dwICC = ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES;
