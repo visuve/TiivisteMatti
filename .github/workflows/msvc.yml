@@ -4,21 +4,39 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
     - uses: actions/checkout@v6
     - uses: microsoft/setup-msbuild@v3
     - uses: darenm/Setup-VSTest@v1.2
 
     - name: Version
+      shell: pwsh
       run: |
         (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to be set in a build pipeline", "${{ github.sha }}") | Set-Content "Version.h"
 
     - name: Compile
       run: |
-        msbuild Win32HashCalc.sln /m
+        msbuild Win32HashCalc.sln /m /p:Configuration=Debug
+        msbuild Win32HashCalc.sln /m /p:Configuration=Release
 
     - name: Test
       run: |
         vstest.console.exe out/x86d/bin/HashCalcTests.dll
         vstest.console.exe out/x64d/bin/HashCalcTests.dll
+
+    - name: Hash
+      shell: pwsh
+      run: |
+        Get-ChildItem "out/x64/bin/*.exe" | Get-FileHash -Algorithm SHA256 | Format-List | Tee-Object Hashes.txt
+
+    - name: Release
+      uses: "marvinpinto/action-automatic-releases@v1.2.1"
+      with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Automated release (latest commit, x64 only)"
+          files: |
+            Hashes.txt
+            out/x64/bin/*.exe
