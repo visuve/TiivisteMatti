@@ -123,11 +123,12 @@ export namespace HashLib::Strings
 	std::vector<T> Split(std::basic_string_view<C> text, C separator)
 	{
 		std::vector<T> result;
+		auto splitView = std::views::split(text, separator);
 
-		for (auto&& part : text | std::views::split(separator))
+		std::ranges::transform(splitView, std::back_inserter(result), [](const auto& part)
 		{
-			result.emplace_back(part.begin(), part.end());
-		}
+			return T(part.begin(), part.end()); 
+		});
 
 		return result;
 	}
@@ -138,12 +139,12 @@ export namespace HashLib::Strings
 		return Join<T, wchar_t>(array, L", ", L" & ");
 	}
 
-	std::vector<std::wstring> Split(std::wstring_view text, char separator = ',')
+	std::vector<std::wstring> Split(std::wstring_view text, wchar_t separator = L',')
 	{
 		return Split<std::wstring, wchar_t>(text, separator);
 	}
 
-	std::vector<std::filesystem::path> SplitPaths(std::wstring_view text, char separator = ',')
+	std::vector<std::filesystem::path> SplitPaths(std::wstring_view text, wchar_t separator = L',')
 	{
 		return Split<std::filesystem::path, wchar_t>(text, separator);
 	}

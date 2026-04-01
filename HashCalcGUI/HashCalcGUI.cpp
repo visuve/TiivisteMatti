@@ -469,10 +469,10 @@ namespace HashCalcGUI
 			{
 				std::wstring ext = path.extension().wstring();
 
-				for (wchar_t& c : ext)
+				std::ranges::transform(ext, ext.begin(), [](wchar_t c)
 				{
-					c = std::towlower(c);
-				}
+					return std::towlower(c);
+				});
 
 				const auto it = _iconCache.find(ext);
 
