@@ -213,6 +213,9 @@ namespace HashCalcGUI
 				case WM_SIZE:
 					OnSize(lparam);
 					break;
+				case WM_NOTIFY:
+					return OnNotify(wparam, lparam);
+					break;
 				case WM_COMMAND:
 					OnCommand(LOWORD(wparam));
 					break;
@@ -594,14 +597,17 @@ namespace HashCalcGUI
 				}
 				else
 				{
+					int index = 0;
+
 					for (const auto& [algo, hash] : hashes)
 					{
 						TVINSERTSTRUCTW is = { 0 };
 						is.hParent = fileIt->second;
 						is.hInsertAfter = TVI_LAST;
-						is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+						is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_PARAM;
 						is.item.iImage = I_IMAGENONE;
 						is.item.iSelectedImage = I_IMAGENONE;
+						is.item.lParam = ++index;
 
 						std::wstring resultText = std::format(L"{}: {}", algo, hash);
 						is.item.pszText = resultText.data();
@@ -712,6 +718,55 @@ namespace HashCalcGUI
 			{
 				MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
 			}
+		}
+
+		LRESULT OnNotify(WPARAM wparam, LPARAM lparam)
+		{
+			LPNMHDR nmhdr = reinterpret_cast<LPNMHDR>(lparam);
+
+			if (nmhdr->idFrom == IDs::TreeView && nmhdr->code == NM_CUSTOMDRAW)
+			{
+				LPNMTVCUSTOMDRAW tvcd = reinterpret_cast<LPNMTVCUSTOMDRAW>(lparam);
+
+				switch (tvcd->nmcd.dwDrawStage)
+				{
+				case CDDS_PREPAINT:
+				{
+					return CDRF_NOTIFYITEMDRAW;
+				}
+				case CDDS_ITEMPREPAINT:
+				{
+					LPARAM index = tvcd->nmcd.lItemlParam;
+
+					switch (index)
+					{
+						case 1: // MD5
+						{
+							tvcd->clrText = RGB(150, 0, 0);
+							return CDRF_NEWFONT;
+						}
+						case 2: // SHA1
+						{
+							tvcd->clrText = RGB(180, 90, 0); 
+							return CDRF_NEWFONT;
+						}
+						case 3: // SHA256
+						{
+							tvcd->clrText = RGB(0, 100, 0);
+							return CDRF_NEWFONT;
+						}
+					}
+
+					return CDRF_DODEFAULT;
+				}
+				default:
+				{
+					return CDRF_DODEFAULT;
+				}
+				}
+			}
+
+			return DefWindowProcW(_window, WM_NOTIFY, wparam, lparam);
 		}
 	};
 }
