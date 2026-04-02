@@ -14,21 +14,17 @@ jobs:
       shell: pwsh
       run: |
         (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to be set in a build pipeline", "${{ github.sha }}") | Set-Content "Version.h"
+        (Get-Content "HashCalcInstaller/HashCalc.wxs" -Raw).Replace("1917", "${{ github.run_number }}") | Set-Content "HashCalcInstaller/HashCalc.wxs"
 
     - name: Compile
       run: |
         msbuild Win32HashCalc.sln /m /p:Configuration=Debug
-        msbuild Win32HashCalc.sln /m /p:Configuration=Release
+        msbuild Win32HashCalc.sln /m /restore /p:Configuration=Release
 
     - name: Test
       run: |
         vstest.console.exe out/x86d/bin/HashCalcTests.dll
         vstest.console.exe out/x64d/bin/HashCalcTests.dll
-
-    - name: Hash
-      shell: pwsh
-      run: |
-        Get-ChildItem "out/x64/bin/*.exe" | Get-FileHash -Algorithm SHA256 | Format-List | Tee-Object Hashes.txt
 
     - name: Release
       uses: "marvinpinto/action-automatic-releases@v1.2.1"
@@ -38,5 +34,5 @@ jobs:
           prerelease: true
           title: "Automated release (latest commit, x64 only)"
           files: |
-            Hashes.txt
             out/x64/bin/*.exe
+            out/x64/bin/*.msi

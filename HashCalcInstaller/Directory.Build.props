@@ -1,0 +1,28 @@
+<Project>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <BaseIntermediateOutputPath>..\out\x86d\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>..\out\x86d\bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <BaseIntermediateOutputPath>..\out\x86\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>..\out\x86\bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <BaseIntermediateOutputPath>..\out\x64d\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>..\out\x64d\bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <BaseIntermediateOutputPath>..\out\x64\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>..\out\x64\bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)</IntermediateOutputPath>
+    <OutputPath>$(BaseOutputPath)</OutputPath>
+    <IntDir>$(BaseIntermediateOutputPath)</IntDir>
+    <OutDir>$(BaseOutputPath)</OutDir>
+  </PropertyGroup>
+</Project>

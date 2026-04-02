@@ -1,4 +1,5 @@
-Win32HashCalc: A Win32 GUI and CLI application to calculate file checksums.
+**HashCalc: A Win32 GUI and CLI application to calculate file checksums.**
+
 Copyright (C) 2026 visuve
 
 This program is free software; you can redistribute it and/or modify
