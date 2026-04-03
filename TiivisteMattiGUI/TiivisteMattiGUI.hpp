@@ -28,8 +28,14 @@ namespace TiivisteMatti
 			AboutText = IDS_AboutText,
 			BrowseTitle = IDS_BrowseTitle,
 			ErrorBufferLimit = IDS_ErrorBufferLimit,
-			ErrorTitle = IDS_ErrorTitle,
 			CtxMenuCopy = IDS_CtxMenuCopy,
+			ErrorTitle = IDS_ErrorTitle,
+			WarningTitle = IDS_WarningTitle,
+			InfoTitle = IDS_InfoTitle,
+			ErrorExportEmpty = IDS_ErrorExportEmpty,
+			ErrorExportBusy = IDS_ErrorExportBusy,
+			ErrorFileOpen = IDS_ErrorFileOpen,
+			ErrorFileWrite = IDS_ErrorFileWrite,
 			LastString
 		};
 

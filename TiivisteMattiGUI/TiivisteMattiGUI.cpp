@@ -281,8 +281,6 @@ namespace TiivisteMatti
 			_completedFiles = 0;
 			_errorFiles = 0;
 			_dotCount = -1;
-
-			EnableMenuItem(GetMenu(_window), IDs::FileExportCSV, MF_BYCOMMAND | MF_GRAYED);
 		}
 
 		TiivisteMattiLib::AsyncCallbacks callbacks;
@@ -527,7 +525,6 @@ namespace TiivisteMatti
 		_ASSERT(_activeThreads == 0);
 		_threads.clear();
 		UpdateStatusBar(IDs::Message::Finished);
-		EnableMenuItem(GetMenu(_window), IDs::FileExportCSV, MF_BYCOMMAND | MF_ENABLED);
 	}
 
 	void MainWindow::HandleBrowse()
@@ -574,8 +571,15 @@ namespace TiivisteMatti
 
 	void MainWindow::HandleExport() const
 	{
-		if (_activeThreads || _results.empty())
+		if (_results.empty())
 		{
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorExportEmpty).c_str(), UiStrings.at(IDs::InfoTitle).c_str(), MB_OK | MB_ICONINFORMATION);
+			return;
+		}
+
+		if (_activeThreads > 0)
+		{
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorExportBusy).c_str(), UiStrings.at(IDs::WarningTitle).c_str(), MB_OK | MB_ICONWARNING);
 			return;
 		}
 
@@ -605,7 +609,8 @@ namespace TiivisteMatti
 
 		if (!file.IsValid())
 		{
-			throw std::system_error(GetLastError(), std::system_category(), "Failed to create export file");
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorFileOpen).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_OK | MB_ICONERROR);
+			return;
 		}
 
 		DWORD bytesWritten = 0;
@@ -613,7 +618,8 @@ namespace TiivisteMatti
 		const wchar_t bom = 0xFEFF;
 		if (!WriteFile(file, &bom, sizeof(wchar_t), &bytesWritten, nullptr))
 		{
-			throw std::system_error(GetLastError(), std::system_category(), "Failed to write BOM to export file");
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorFileWrite).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_OK | MB_ICONERROR);
+			return;
 		}
 
 		std::wstring data = std::format(L"Path;{}\r\n", TiivisteMattiLib::Strings::Join(DefaultAlgorithms, L','));
@@ -631,7 +637,7 @@ namespace TiivisteMatti
 
 		if (!WriteFile(file, data.c_str(), static_cast<DWORD>(data.length() * sizeof(wchar_t)), &bytesWritten, nullptr))
 		{
-			throw std::system_error(GetLastError(), std::system_category(), "Failed to write data to export file");
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorFileWrite).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_OK | MB_ICONERROR);
 		}
 	}
 
@@ -906,6 +912,8 @@ namespace TiivisteMatti
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 {
+	constexpr wchar_t ProductName[] = L"Tiiviste-Matti";
+
 	// Uncomment to force locale to something:
 	// SetThreadUILanguage(MAKELANGID(LANG_FINNISH, SUBLANG_DEFAULT));
 	// SetThreadUILanguage(MAKELANGID(LANG_SWEDISH, SUBLANG_DEFAULT));
@@ -930,19 +938,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 	}
 	catch (const std::system_error& e)
 	{
-		std::string msg = std::format("Fatal System Error:\n{}\nCode: {}", e.what(), e.code().value());
-		MessageBoxA(nullptr, msg.c_str(), "Initialization Failure", MB_OK | MB_ICONERROR);
+		const std::wstring msg = 
+			std::format(L"A system exception occurred. Error:\n{}\nCode: {}",
+			TiivisteMattiLib::Strings::ToWide(e.what()),
+			e.code().value());
+		MessageBoxW(nullptr, msg.c_str(), ProductName, MB_OK | MB_ICONERROR);
 		return e.code().value();
 	}
 	catch (const std::exception& e)
 	{
-		std::string msg = std::format("Fatal Error:\n{}", e.what());
-		MessageBoxA(nullptr, msg.c_str(), "Initialization Failure", MB_OK | MB_ICONERROR);
+		const std::wstring msg = std::format(L"An exception occurred. Error:\n{}",
+			TiivisteMattiLib::Strings::ToWide(e.what()));
+		MessageBoxW(nullptr, msg.c_str(), ProductName, MB_OK | MB_ICONERROR);
 		return ERROR_UNHANDLED_EXCEPTION;
 	}
 	catch (...)
 	{
-		MessageBoxW(nullptr, L"An unknown catastrophic error occurred.", L"Initialization Failure", MB_OK | MB_ICONERROR);
+		MessageBoxW(nullptr, L"An unknown exception occurred.", ProductName, MB_OK | MB_ICONERROR);
 		return ERROR_UNHANDLED_EXCEPTION;
 	}
 }

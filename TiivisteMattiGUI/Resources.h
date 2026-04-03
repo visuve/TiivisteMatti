@@ -18,5 +18,11 @@
 #define IDS_AboutText        116
 #define IDS_BrowseTitle      117
 #define IDS_ErrorBufferLimit 118
-#define IDS_ErrorTitle       119
-#define IDS_CtxMenuCopy      120
+#define IDS_CtxMenuCopy      119
+#define IDS_ErrorTitle       120
+#define IDS_WarningTitle     121
+#define IDS_InfoTitle        122
+#define IDS_ErrorExportEmpty 123
+#define IDS_ErrorExportBusy  124
+#define IDS_ErrorFileOpen    125
+#define IDS_ErrorFileWrite   126
