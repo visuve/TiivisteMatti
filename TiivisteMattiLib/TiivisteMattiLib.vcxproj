@@ -10,6 +10,7 @@
     <ClInclude Include="PCH.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Handle.cpp" />
     <ClCompile Include="TiivisteMattiLib.ixx" />
     <ClCompile Include="Strings.cpp" />
     <ClCompile Include="Calculator.cpp" />

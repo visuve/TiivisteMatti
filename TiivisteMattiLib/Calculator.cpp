@@ -5,60 +5,6 @@ module TiivisteMattiLib;
 
 namespace TiivisteMattiLib
 {
-	class Handle
-	{
-	public:
-		Handle() = default;
-
-		explicit Handle(HANDLE handle) : 
-			_handle(handle) 
-		{
-		}
-
-		~Handle()
-		{
-			Close();
-		}
-
-		Handle(const Handle&) = delete;
-		Handle(Handle&& other) = delete;
-		Handle& operator = (const Handle&) = delete;
-		Handle& operator = (Handle&&) = delete;
-
-		Handle& operator = (HANDLE handle)
-		{
-			if (_handle != handle)
-			{
-				Close();
-				_handle = handle;
-			}
-
-			return *this;
-		}
-
-		void Close()
-		{
-			if (_handle != nullptr && _handle != INVALID_HANDLE_VALUE)
-			{
-				CloseHandle(_handle);
-				_handle = INVALID_HANDLE_VALUE;
-			}
-		}
-
-		bool IsValid() const
-		{
-			return _handle != nullptr && _handle != INVALID_HANDLE_VALUE;
-		}
-
-		operator HANDLE() const
-		{ 
-			return _handle; 
-		}
-
-	private:
-		HANDLE _handle = INVALID_HANDLE_VALUE;
-	};
-
 	class MemoryMappedFile
 	{
 	public:

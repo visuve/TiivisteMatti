@@ -16,6 +16,28 @@ export namespace TiivisteMattiLib
 		std::string Format(const std::wstring& what, const NTSTATUS status);
 	};
 
+	class Handle
+	{
+	public:
+		Handle() = default;
+		explicit Handle(HANDLE handle);
+		~Handle();
+
+		Handle(const Handle&) = delete;
+		Handle(Handle&& other) = delete;
+		Handle& operator = (const Handle&) = delete;
+		Handle& operator = (Handle&&) = delete;
+
+		Handle& operator = (HANDLE handle);
+
+		void Close();
+		bool IsValid() const;
+		operator HANDLE() const;
+
+	private:
+		HANDLE _handle = INVALID_HANDLE_VALUE;
+	};
+
 	class Hash
 	{
 	public:
