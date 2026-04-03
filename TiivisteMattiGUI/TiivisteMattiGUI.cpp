@@ -234,70 +234,27 @@ namespace TiivisteMatti
 					break;
 				case WM_DESTROY:
 				{
-					for (auto& thread : _workerThreads)
-					{
-						if (thread.joinable())
-						{
-							thread.request_stop();
-						}
-					}
-
-					PostQuitMessage(0);
+					OnDestroy();
 					break;
 				}
 				case IDs::Message::UpdateProgress:
 				{
-					std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
-
-					if (_progressNodes.find(data->FilePath) == _progressNodes.end())
-					{
-						AddFileToTree(data->FilePath);
-						UpdateStatusBar(message);
-					}
-
-					std::wstring text = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(data->Percentage));
-
-					TVITEMW tvi = { 0 };
-					tvi.mask = TVIF_TEXT;
-					tvi.hItem = _progressNodes[data->FilePath];
-					tvi.pszText = text.data();
-
-					SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+					OnUpdateProgress(lparam);
 					break;
 				}
 				case IDs::Message::UpdateComplete:
 				{
-					std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-					if (_fileNodes.find(data->FilePath) == _fileNodes.end())
-					{
-						AddFileToTree(data->FilePath); // Failsafe for 0-byte files
-					}
-
-					FinalizeFileNode(data->FilePath, data->Hashes, L"");
-					++_completedFiles;
-					UpdateStatusBar(message);
+					OnUpdateComplete(lparam);
 					break;
 				}
 				case IDs::Message::UpdateError:
 				{
-					std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-					if (_fileNodes.find(data->FilePath) == _fileNodes.end())
-					{
-						AddFileToTree(data->FilePath);
-					}
-
-					FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
-					++_errorFiles;
-					UpdateStatusBar(message);
+					OnUpdateError(lparam);
 					break;
 				}
 				case IDs::Message::Finished:
 				{
-					_ASSERT(_activeThreads == 0);
-					_workerThreads.clear();
-					UpdateStatusBar(message);
+					OnFinished();
 					break;
 				}
 				default:
@@ -392,10 +349,7 @@ namespace TiivisteMatti
 					break;
 				case IDs::HelpAbout:
 				{
-					const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
-					const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
-					const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
-					MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
+					HandleAbout();
 					break;
 				}
 			}
@@ -581,50 +535,62 @@ namespace TiivisteMatti
 			}
 		}
 
+		void InsertErrorNode(HTREEITEM parent, const std::wstring& error) const
+		{
+			TVINSERTSTRUCTW is = { 0 };
+			is.hParent = parent;
+			is.hInsertAfter = TVI_LAST;
+			is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+			is.item.iImage = I_IMAGENONE;
+			is.item.iSelectedImage = I_IMAGENONE;
+
+			std::wstring errText = std::format(L"{}: {}", UiStrings.at(IDs::StatusError), error);
+			is.item.pszText = errText.data();
+
+			InsertTreeItem(is);
+		}
+
+		void InsertHashNodes(HTREEITEM parent, const std::map<std::wstring, std::wstring>& hashes) const
+		{
+			int index = 0;
+
+			for (const auto& [algo, hash] : hashes)
+			{
+				TVINSERTSTRUCTW is = { 0 };
+				is.hParent = parent;
+				is.hInsertAfter = TVI_LAST;
+				is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_PARAM;
+				is.item.iImage = I_IMAGENONE;
+				is.item.iSelectedImage = I_IMAGENONE;
+				is.item.lParam = ++index;
+
+				std::wstring resultText = std::format(L"{}: {}", algo, hash);
+				is.item.pszText = resultText.data();
+
+				InsertTreeItem(is);
+			}
+		}
+
 		void FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error)
 		{
 			auto progIt = _progressNodes.find(filePath);
 			auto fileIt = _fileNodes.find(filePath);
 
-			if (progIt != _progressNodes.end() && fileIt != _fileNodes.end())
+			if (progIt == _progressNodes.end() || fileIt == _fileNodes.end())
 			{
-				SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(progIt->second));
-				_progressNodes.erase(progIt);
+				return;
+			}
 
-				if (!error.empty())
-				{
-					TVINSERTSTRUCTW is = { 0 };
-					is.hParent = fileIt->second;
-					is.hInsertAfter = TVI_LAST;
-					is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-					is.item.iImage = I_IMAGENONE;
-					is.item.iSelectedImage = I_IMAGENONE;
+			SendMessageW(_treeView, TVM_DELETEITEM, 0, reinterpret_cast<LPARAM>(progIt->second));
+			_progressNodes.erase(progIt);
 
-					std::wstring errText = std::format(L"{}: {}", UiStrings.at(IDs::StatusError), error);
-					is.item.pszText = errText.data();
-
-					InsertTreeItem(is);
-				}
-				else
-				{
-					int index = 0;
-
-					for (const auto& [algo, hash] : hashes)
-					{
-						TVINSERTSTRUCTW is = { 0 };
-						is.hParent = fileIt->second;
-						is.hInsertAfter = TVI_LAST;
-						is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_PARAM;
-						is.item.iImage = I_IMAGENONE;
-						is.item.iSelectedImage = I_IMAGENONE;
-						is.item.lParam = ++index;
-
-						std::wstring resultText = std::format(L"{}: {}", algo, hash);
-						is.item.pszText = resultText.data();
-
-						InsertTreeItem(is);
-					}
-				}
+			if (!error.empty())
+			{
+				InsertErrorNode(fileIt->second, error);
+			}
+			else
+			{
+				InsertHashNodes(fileIt->second, hashes);
 			}
 		}
 
@@ -728,6 +694,29 @@ namespace TiivisteMatti
 			{
 				MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
 			}
+		}
+
+		void HandleAbout()
+		{
+			const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
+			const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
+			const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
+			MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
+		}
+
+		void OnDestroy()
+		{
+			DragAcceptFiles(_window, FALSE);
+
+			for (auto& thread : _workerThreads)
+			{
+				if (thread.joinable())
+				{
+					thread.request_stop();
+				}
+			}
+
+			PostQuitMessage(0);
 		}
 
 		LRESULT OnNotify(WPARAM wparam, LPARAM lparam)
@@ -852,6 +841,62 @@ namespace TiivisteMatti
 			}
 
 			CloseClipboard();
+		}
+
+		void OnUpdateProgress(LPARAM lparam)
+		{
+			std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
+			auto it = _progressNodes.find(data->FilePath);
+
+			if (_progressNodes.find(data->FilePath) == _progressNodes.end())
+			{
+				AddFileToTree(data->FilePath);
+				UpdateStatusBar(IDs::Message::UpdateProgress);
+			}
+
+			std::wstring text = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(data->Percentage));
+
+			TVITEMW tvi = { 0 };
+			tvi.mask = TVIF_TEXT;
+			tvi.hItem = _progressNodes[data->FilePath];
+			tvi.pszText = text.data();
+
+			SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+		}
+
+		void OnUpdateComplete(LPARAM lparam)
+		{
+			std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+			if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+			{
+				AddFileToTree(data->FilePath); // Failsafe for 0-byte files
+			}
+
+			FinalizeFileNode(data->FilePath, data->Hashes, L"");
+			++_completedFiles;
+			UpdateStatusBar(IDs::Message::UpdateComplete);
+		}
+
+		void OnUpdateError(LPARAM lparam)
+		{
+			std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+			if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+			{
+				AddFileToTree(data->FilePath);
+			}
+
+			FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
+			++_errorFiles;
+			UpdateStatusBar(IDs::Message::UpdateError);
+		}
+
+		void OnFinished()
+		{
+			_ASSERT(_activeThreads == 0);
+			_workerThreads.clear();
+			UpdateStatusBar(IDs::Message::Finished);
 		}
 	};
 }
