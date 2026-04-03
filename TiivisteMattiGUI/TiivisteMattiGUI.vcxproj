@@ -15,6 +15,7 @@
   <ItemGroup>
     <ClInclude Include="PCH.hpp" />
     <ClInclude Include="Resources.h" />
+    <ClInclude Include="TiivisteMattiGUI.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="TiivisteMattiGUI.cpp" />
