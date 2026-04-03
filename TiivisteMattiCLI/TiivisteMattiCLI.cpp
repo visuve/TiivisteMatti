@@ -102,7 +102,12 @@ int wmain(int argc, wchar_t* argv[])
 		return ERROR_BAD_ARGUMENTS;
 	}
 
-	std::vector<std::wstring> selectedAlgorithms = { BCRYPT_SHA256_ALGORITHM };
+	std::vector<std::wstring> selectedAlgorithms = 
+	{ 
+		BCRYPT_MD5_ALGORITHM,
+		BCRYPT_SHA1_ALGORITHM,
+		BCRYPT_SHA256_ALGORITHM
+	};
 
 	if (argc == 3)
 	{
@@ -121,6 +126,8 @@ int wmain(int argc, wchar_t* argv[])
 
 		if (IsReadableFile(argv[1]) || IsReadableFolder(argv[1]))
 		{
+			std::wcout << L"Path," << TML::Strings::Join(selectedAlgorithms, std::wstring_view(L","), std::wstring_view(L",")) << std::endl;
+
 			std::mutex printMutex;
 			std::promise<void> completionPromise;
 
@@ -128,20 +135,43 @@ int wmain(int argc, wchar_t* argv[])
 
 			callbacks.OnProgress = nullptr;
 
-			callbacks.OnComplete = [&printMutex](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
+			callbacks.OnComplete = [&printMutex, selectedAlgorithms](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
 			{
 				std::lock_guard lock(printMutex);
 
-				for (const auto& [algo, hash] : hashes)
+				std::wcout << path;
+
+				for (const auto& algo : selectedAlgorithms)
 				{
-					std::wcout << path << L'\t' << algo << L'\t' << hash << std::endl;
+					std::wcout << L',';
+
+					auto it = hashes.find(algo);
+
+					if (it != hashes.end())
+					{
+						std::wcout << it->second;
+					}
+					else
+					{
+						std::wcout << L"Unknown";
+					}
 				}
+
+				std::wcout << std::endl;
 			};
 
-			callbacks.OnError = [&printMutex](const std::filesystem::path& path, const std::wstring& error)
+			callbacks.OnError = [&printMutex, selectedAlgorithms](const std::filesystem::path& path, const std::wstring& error)
 			{
 				std::lock_guard lock(printMutex);
-				std::wcerr << path << L"\tError: " << error << std::endl;
+
+				std::wcout << path;
+
+				for (size_t i = 0; i < selectedAlgorithms.size(); ++i)
+				{
+					std::wcout << L',' << error;
+				}
+
+				std::wcout << std::endl;
 			};
 
 			callbacks.OnFinished = [&completionPromise]()
@@ -163,7 +193,7 @@ int wmain(int argc, wchar_t* argv[])
 		{
 			for (const auto& [algo, hash] : hashCalc.CalculateChecksums(argv[1]))
 			{
-				std::wcout << algo << L'\t' << hash << std::endl;
+				std::wcout << algo << L':' << hash << std::endl;
 			}
 		}
 	}
