@@ -1,9 +1,9 @@
 module;
 #include "PCH.hpp"
 
-module HashLib;
+module TiivisteMattiLib;
 
-namespace HashLib::Strings
+namespace TiivisteMattiLib::Strings
 {
 	std::string ToNarrow(std::wstring_view input, uint32_t codepage)
 	{

@@ -14,17 +14,17 @@ jobs:
       shell: pwsh
       run: |
         (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to be set in a build pipeline", "${{ github.sha }}") | Set-Content "Version.h"
-        (Get-Content "HashCalcInstaller/HashCalc.wxs" -Raw).Replace("1917", "${{ github.run_number }}") | Set-Content "HashCalcInstaller/HashCalc.wxs"
+        (Get-Content "TiivisteMattiInstaller/TiivisteMattiInstaller.wxs" -Raw).Replace("1917", "${{ github.run_number }}") | Set-Content "TiivisteMattiInstaller/TiivisteMattiInstaller.wxs"
 
     - name: Compile
       run: |
-        msbuild Win32HashCalc.sln /m /p:Configuration=Debug
-        msbuild Win32HashCalc.sln /m /restore /p:Configuration=Release
+        msbuild TiivisteMatti.sln /m /p:Configuration=Debug
+        msbuild TiivisteMatti.sln /m /restore /p:Configuration=Release
 
     - name: Test
       run: |
-        vstest.console.exe out/x86d/bin/HashCalcTests.dll
-        vstest.console.exe out/x64d/bin/HashCalcTests.dll
+        vstest.console.exe out/x86d/bin/TiivisteMattiTests.dll
+        vstest.console.exe out/x64d/bin/TiivisteMattiTests.dll
 
     - name: Release
       uses: "marvinpinto/action-automatic-releases@v1.2.1"

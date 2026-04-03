@@ -1,9 +1,11 @@
 #include "PCH.hpp"
 #include "../Version.h"
 
-import HashLib;
+import TiivisteMattiLib;
 
-namespace HashCalcCLI
+namespace TML = TiivisteMattiLib;
+
+namespace TiivisteMatti
 {
 	bool CheckPath(const std::filesystem::path& path, std::filesystem::file_type expectedType)
 	{
@@ -63,16 +65,15 @@ namespace HashCalcCLI
 
 	void PrintUsage(const std::filesystem::path& exePath)
 	{
-		std::wcerr << L"HashCalc v" << HashLib::Strings::ToWide(HASHCALC_VERSION) << std::endl;
+		std::wcerr << L"Tiiviste-Matti v" << TML::Strings::ToWide(TIIVISTEMATTI_VERSION) << std::endl;
 		std::wcerr << L"A command-line utility for calculating file checksums using Windows CNG API." << std::endl;
-		std::wcerr << L"Git commit hash: " << HashLib::Strings::ToWide(HASHCALC_COMMIT_HASH) << std::endl;
+		std::wcerr << L"Git commit hash: " << TML::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH) << std::endl;
 		std::wcerr << L"\nUsage:" << std::endl;
 		std::wcerr << exePath << " <string>" << std::endl;
 		std::wcerr << exePath << " X:\\Path\\To\\FileOrFolder" << std::endl;
 		std::wcerr << exePath << " <string> <algorithm>" << std::endl;
 		std::wcerr << exePath << " X:\\Path\\To\\FileOrFolder <algorithm>" << std::endl;
-		std::wcerr << L"Currently supported algorithms: " <<
-			HashLib::Strings::Join(SupportedAlgorithms) << std::endl;
+		std::wcerr << L"Currently supported algorithms: " << TML::Strings::Join(SupportedAlgorithms) << std::endl;
 	}
 
 	std::stop_source StopSource;
@@ -91,7 +92,7 @@ namespace HashCalcCLI
 
 int wmain(int argc, wchar_t* argv[])
 {
-	using namespace HashCalcCLI;
+	using namespace TiivisteMatti;
 
 	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
@@ -105,7 +106,7 @@ int wmain(int argc, wchar_t* argv[])
 
 	if (argc == 3)
 	{
-		selectedAlgorithms = HashLib::Strings::Split(argv[2]);
+		selectedAlgorithms = TML::Strings::Split(argv[2]);
 
 		if (ContainsUnsupportedAlgorithms(selectedAlgorithms))
 		{
@@ -116,14 +117,14 @@ int wmain(int argc, wchar_t* argv[])
 
 	try
 	{
-		HashLib::Calculator hashCalc(selectedAlgorithms);
+		TML::Calculator hashCalc(selectedAlgorithms);
 
 		if (IsReadableFile(argv[1]) || IsReadableFolder(argv[1]))
 		{
 			std::mutex printMutex;
 			std::promise<void> completionPromise;
 
-			HashLib::AsyncCallbacks callbacks;
+			TML::AsyncCallbacks callbacks;
 
 			callbacks.OnProgress = nullptr;
 
@@ -148,7 +149,7 @@ int wmain(int argc, wchar_t* argv[])
 				completionPromise.set_value();
 			};
 
-			std::vector<std::filesystem::path> paths = HashLib::Strings::SplitPaths(argv[1]);
+			std::vector<std::filesystem::path> paths = TML::Strings::SplitPaths(argv[1]);
 			std::jthread worker = hashCalc.CalculateChecksumsAsync(std::move(paths), std::move(callbacks));
 
 			std::stop_callback stopLink(StopSource.get_token(), [&worker]()
@@ -166,7 +167,7 @@ int wmain(int argc, wchar_t* argv[])
 			}
 		}
 	}
-	catch (const HashLib::Exception& e)
+	catch (const TiivisteMattiLib::Exception& e)
 	{
 		std::cerr << "An exception occurred: " << e.what() << std::endl;
 		return e.Code;

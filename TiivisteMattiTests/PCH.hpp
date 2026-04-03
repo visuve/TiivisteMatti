@@ -2,6 +2,6 @@
 
 #include "CppUnitTest.h"
 
-#include "../HashCalcLib/PCH.hpp"
+#include "../TiivisteMattiLib/PCH.hpp"
 
 #include <future>

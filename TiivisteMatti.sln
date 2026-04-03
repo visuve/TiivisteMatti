@@ -9,22 +9,22 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
 		.github\workflows\cppcheck.yml = .github\workflows\cppcheck.yml
-		HashCalc.props = HashCalc.props
+		TiivisteMatti.props = TiivisteMatti.props
 		LICENSE.md = LICENSE.md
 		.github\workflows\msvc.yml = .github\workflows\msvc.yml
 		ReadMe.md = ReadMe.md
 		Version.h = Version.h
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcLib", "HashCalcLib\HashCalcLib.vcxproj", "{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TiivisteMattiLib", "TiivisteMattiLib\TiivisteMattiLib.vcxproj", "{EAA89AD3-0C3B-4D65-A338-E04C2EF799CE}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcCLI", "HashCalcCLI\HashCalcCLI.vcxproj", "{BFD73787-16E7-4774-B669-0DD266F647EB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TiivisteMattiCLI", "TiivisteMattiCLI\TiivisteMattiCLI.vcxproj", "{BFD73787-16E7-4774-B669-0DD266F647EB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcGUI", "HashCalcGUI\HashCalcGUI.vcxproj", "{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TiivisteMattiGUI", "TiivisteMattiGUI\TiivisteMattiGUI.vcxproj", "{B64C2496-9366-4FC5-BECD-D29CE2FC2C37}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HashCalcTests", "HashCalcTests\HashCalcTests.vcxproj", "{FEA5E26D-9B4B-4924-816F-5FBD2C338851}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TiivisteMattiTests", "TiivisteMattiTests\TiivisteMattiTests.vcxproj", "{FEA5E26D-9B4B-4924-816F-5FBD2C338851}"
 EndProject
-Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "HashCalcInstaller", "HashCalcInstaller\HashCalcInstaller.wixproj", "{892A29AE-17A6-4C8D-8AC5-5ABD35D4D01E}"
+Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "TiivisteMattiInstaller", "TiivisteMattiInstaller\TiivisteMattiInstaller.wixproj", "{892A29AE-17A6-4C8D-8AC5-5ABD35D4D01E}"
 	ProjectSection(ProjectDependencies) = postProject
 		{B64C2496-9366-4FC5-BECD-D29CE2FC2C37} = {B64C2496-9366-4FC5-BECD-D29CE2FC2C37}
 		{BFD73787-16E7-4774-B669-0DD266F647EB} = {BFD73787-16E7-4774-B669-0DD266F647EB}

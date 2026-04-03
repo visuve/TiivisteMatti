@@ -6,9 +6,9 @@
 	<check-unused-templates>true</check-unused-templates>
 	<max-ctu-depth>10</max-ctu-depth>
 	<paths>
-		<dir name="HashCalcLib"/>
-		<dir name="HashCalcCLI"/>
-		<dir name="HashCalcGUI"/>
+		<dir name="TiivisteMattiLib"/>
+		<dir name="TiivisteMattiCLI"/>
+		<dir name="TiivisteMattiGUI"/>
 	</paths>
 	<libraries>
 		<library>windows</library>

@@ -1,9 +1,9 @@
 module;
 #include "PCH.hpp"
 
-module HashLib;
+module TiivisteMattiLib;
 
-namespace HashLib
+namespace TiivisteMattiLib
 {
 	Exception::Exception(const std::wstring& what, const NTSTATUS status) :
 		std::exception(Format(what, status).c_str()),

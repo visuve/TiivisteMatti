@@ -5,7 +5,7 @@
     <Keyword>Win32Proj</Keyword>
     <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)HashCalc.props" />
+  <Import Project="$(SolutionDir)TiivisteMatti.props" />
   <ItemDefinitionGroup>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -17,16 +17,16 @@
     <ClInclude Include="Resources.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="HashCalcGUI.cpp" />
+    <ClCompile Include="TiivisteMattiGUI.cpp" />
     <ClCompile Include="PCH.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="HashCalcGUI.rc" />
+    <ResourceCompile Include="TiivisteMattiGUI.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HashCalcLib\HashCalcLib.vcxproj">
+    <ProjectReference Include="..\TiivisteMattiLib\TiivisteMattiLib.vcxproj">
       <Project>{eaa89ad3-0c3b-4d65-a338-e04c2ef799ce}</Project>
     </ProjectReference>
   </ItemGroup>

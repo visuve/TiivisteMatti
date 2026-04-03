@@ -15,4 +15,4 @@ jobs:
 
     - name: Static analysis
       run: |
-        cppcheck --project=Win32HashCalc.cppcheck --error-exitcode=1 --enable=warning,style
+        cppcheck --project=TiivisteMatti.cppcheck --error-exitcode=1 --enable=warning,style

@@ -2,9 +2,9 @@
 #include "Resources.h"
 #include "../Version.h"
 
-import HashLib;
+import TiivisteMattiLib;
 
-namespace HashCalcGUI
+namespace TiivisteMatti
 {
 	namespace IDs
 	{
@@ -96,7 +96,7 @@ namespace HashCalcGUI
 	public:
 		void Create(HINSTANCE instance, int cmdShow)
 		{
-			const wchar_t className[] = L"HashCalcWindow";
+			const wchar_t className[] = L"TiivisteMattiWindow";
 			WNDCLASSW windowClass = { 0 };
 			windowClass.lpfnWndProc = WindowProcedure;
 			windowClass.hInstance = instance;
@@ -174,7 +174,7 @@ namespace HashCalcGUI
 		std::map<std::filesystem::path, HTREEITEM> _fileNodes;
 		std::map<std::filesystem::path, HTREEITEM> _progressNodes;
 
-		HashLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
+		TiivisteMattiLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
 		std::vector<std::jthread> _workerThreads;
 		std::atomic<int> _activeThreads;
 		std::mutex _mutex;
@@ -306,7 +306,7 @@ namespace HashCalcGUI
 			}
 			catch (const std::exception& e)
 			{
-				std::wstring errorMsg = HashLib::Strings::ToWide(e.what());
+				std::wstring errorMsg = TiivisteMattiLib::Strings::ToWide(e.what());
 				MessageBoxW(_window, errorMsg.c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_OK | MB_ICONERROR);
 			}
 
@@ -392,8 +392,8 @@ namespace HashCalcGUI
 					break;
 				case IDs::HelpAbout:
 				{
-					const std::wstring wideVersion = HashLib::Strings::ToWide(HASHCALC_VERSION);
-					const std::wstring wideHash = HashLib::Strings::ToWide(HASHCALC_COMMIT_HASH);
+					const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
+					const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
 					const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
 					MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
 					break;
@@ -638,7 +638,7 @@ namespace HashCalcGUI
 				_dotCount = -1;
 			}
 
-			HashLib::AsyncCallbacks callbacks;
+			TiivisteMattiLib::AsyncCallbacks callbacks;
 
 			callbacks.OnStart = [this]()
 			{
@@ -864,7 +864,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 
 	try
 	{
-		HashCalcGUI::InitializeStrings();
+		TiivisteMatti::InitializeStrings();
 
 		INITCOMMONCONTROLSEX initCtrl = { 0 };
 		initCtrl.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -875,7 +875,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int cmdShow)
 			throw std::system_error(GetLastError(), std::system_category(), "InitCommonControlsEx failed");
 		}
 
-		HashCalcGUI::MainWindow app;
+		TiivisteMatti::MainWindow app;
 		app.Create(instance, cmdShow);
 
 		return app.Run();

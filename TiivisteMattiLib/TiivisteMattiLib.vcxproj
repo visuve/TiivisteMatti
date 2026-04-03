@@ -5,12 +5,12 @@
     <Keyword>Win32Proj</Keyword>
     <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)HashCalc.props" />
+  <Import Project="$(SolutionDir)TiivisteMatti.props" />
   <ItemGroup>
     <ClInclude Include="PCH.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="HashLib.ixx" />
+    <ClCompile Include="TiivisteMattiLib.ixx" />
     <ClCompile Include="Strings.cpp" />
     <ClCompile Include="Calculator.cpp" />
     <ClCompile Include="Exception.cpp" />

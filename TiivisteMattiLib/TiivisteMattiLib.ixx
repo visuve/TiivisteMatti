@@ -2,9 +2,9 @@ module;
 
 #include "PCH.hpp"
 
-export module HashLib;
+export module TiivisteMattiLib;
 
-export namespace HashLib
+export namespace TiivisteMattiLib
 {
 	class Exception : public std::exception
 	{
@@ -83,7 +83,7 @@ export namespace HashLib
 	};
 }
 
-export namespace HashLib::Strings
+export namespace TiivisteMattiLib::Strings
 {
 	std::string ToNarrow(std::wstring_view data, uint32_t codepage = CP_ACP);
 	std::wstring ToWide(std::string_view data, uint32_t codepage = CP_ACP);

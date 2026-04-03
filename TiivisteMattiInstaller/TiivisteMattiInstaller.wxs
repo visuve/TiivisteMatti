@@ -1,6 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-	<Package Name="HashCalc" Manufacturer="visuve" Version="1.0.1917.0" UpgradeCode="ddd5f5d1-1373-47eb-aaed-b01c98f6050c">
-		<MajorUpgrade DowngradeErrorMessage="A newer version of HashCalc is already installed." />
+	<Package Name="Tiiviste-Matti" Manufacturer="visuve" Version="1.0.1917.0" UpgradeCode="ddd5f5d1-1373-47eb-aaed-b01c98f6050c">
+		<MajorUpgrade DowngradeErrorMessage="A newer version of Tiiviste-Matti is already installed." />
 		<MediaTemplate EmbedCab="yes" />
 
 		<ui:WixUI Id="WixUI_Minimal" />
@@ -8,21 +8,21 @@
 		<WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
 		<StandardDirectory Id="ProgramFiles64Folder">
-			<Directory Id="INSTALLFOLDER" Name="HashCalc" />
+			<Directory Id="INSTALLFOLDER" Name="Tiiviste-Matti" />
 		</StandardDirectory>
 
 		<StandardDirectory Id="ProgramMenuFolder">
-			<Directory Id="ApplicationProgramsFolder" Name="HashCalc" />
+			<Directory Id="ApplicationProgramsFolder" Name="Tiiviste-Matti" />
 		</StandardDirectory>
 
 		<ComponentGroup Id="ProductComponents">
 			<Component Directory="INSTALLFOLDER">
-				<File Id="HashCalcGUI_exe" Source="$(SolutionDir)out\x64\bin\HashCalcGUI.exe" KeyPath="yes" />
-				<Shortcut Name="HashCalc" Directory="ApplicationProgramsFolder" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+				<File Id="TiivisteMattiGUI_exe" Source="$(SolutionDir)out\x64\bin\TiivisteMattiGUI.exe" KeyPath="yes" />
+				<Shortcut Name="Tiiviste-Matti" Directory="ApplicationProgramsFolder" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
 			</Component>
 
 			<Component Directory="INSTALLFOLDER">
-				<File Source="$(SolutionDir)out\x64\bin\HashCalcCLI.exe" />
+				<File Source="$(SolutionDir)out\x64\bin\TiivisteMattiCLI.exe" />
 			</Component>
 
 			<Component Directory="INSTALLFOLDER">
@@ -31,7 +31,7 @@
 
 			<Component Directory="ApplicationProgramsFolder">
 				<RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
-				<RegistryValue Root="HKCU" Key="Software\visuve\HashCalc" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+				<RegistryValue Root="HKCU" Key="Software\visuve\TiivisteMatti" Name="installed" Type="integer" Value="1" KeyPath="yes" />
 			</Component>
 		</ComponentGroup>
 

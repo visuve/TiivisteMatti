@@ -1,4 +1,4 @@
-**HashCalc: A Win32 GUI and CLI application to calculate file checksums.**
+**Tiiviste-Matti: A Win32 GUI and CLI application to calculate file checksums.**
 
 Copyright (C) 2026 visuve
 

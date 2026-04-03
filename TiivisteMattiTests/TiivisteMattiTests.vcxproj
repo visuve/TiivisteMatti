@@ -6,10 +6,10 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <ProjectSubType>NativeUnitTestProject</ProjectSubType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)HashCalc.props" />
+  <Import Project="$(SolutionDir)TiivisteMatti.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)HashCalcLib;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)TiivisteMattiLib;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -22,14 +22,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="TestExceptions.cpp" />
-    <ClCompile Include="TestHashCalc.cpp" />
+    <ClCompile Include="TestCalculator.cpp" />
     <ClCompile Include="TestStrings.cpp" />
     <ClCompile Include="PCH.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HashCalcLib\HashCalcLib.vcxproj">
+    <ProjectReference Include="..\TiivisteMattiLib\TiivisteMattiLib.vcxproj">
       <Project>{eaa89ad3-0c3b-4d65-a338-e04c2ef799ce}</Project>
     </ProjectReference>
   </ItemGroup>

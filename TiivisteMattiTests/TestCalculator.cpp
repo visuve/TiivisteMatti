@@ -1,15 +1,15 @@
 #include "PCH.hpp"
 
-import HashLib;
+import TiivisteMattiLib;
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-TEST_CLASS(HashCalcTests)
+TEST_CLASS(HashTests)
 {
 public:
 	TEST_METHOD(StringChecksumSame)
 	{
-		HashLib::Calculator calculator({ BCRYPT_MD2_ALGORITHM, BCRYPT_MD4_ALGORITHM, BCRYPT_MD5_ALGORITHM, BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA384_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_MD2_ALGORITHM, BCRYPT_MD4_ALGORITHM, BCRYPT_MD5_ALGORITHM, BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA384_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
 
 		auto result = calculator.CalculateChecksums(L"hello");
 
@@ -24,7 +24,7 @@ public:
 
 	TEST_METHOD(StringChecksumAlternating)
 	{
-		HashLib::Calculator calculator({ BCRYPT_MD2_ALGORITHM, BCRYPT_MD4_ALGORITHM, BCRYPT_MD5_ALGORITHM, BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA384_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_MD2_ALGORITHM, BCRYPT_MD4_ALGORITHM, BCRYPT_MD5_ALGORITHM, BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA384_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
 
 		Assert::AreEqual(L"80a4442c57b9ae254e262ba19c1c832c", calculator.CalculateChecksums(L"hydrogen")[BCRYPT_MD2_ALGORITHM].c_str());
 		Assert::AreEqual(L"61bd12ec5d9d13a2956d8e0a33be5bdd", calculator.CalculateChecksums(L"helium")[BCRYPT_MD4_ALGORITHM].c_str());
@@ -39,18 +39,18 @@ public:
 	{
 		auto createInvalidCalculator = []
 		{
-			HashLib::Calculator calculator({ L"INVALID_ALGO" });
+			TiivisteMattiLib::Calculator calculator({ L"INVALID_ALGO" });
 		};
 
-		Assert::ExpectException<HashLib::Exception>(createInvalidCalculator);
+		Assert::ExpectException<TiivisteMattiLib::Exception>(createInvalidCalculator);
 	}
 
 	TEST_METHOD(FileChecksum)
 	{
-		const std::filesystem::path path(L"..\\..\\..\\HashCalc.props");
+		const std::filesystem::path path(L"..\\..\\..\\TiivisteMatti.props");
 		std::stop_source source;
 
-		HashLib::Calculator calculator({ BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_SHA1_ALGORITHM, BCRYPT_SHA256_ALGORITHM, BCRYPT_SHA512_ALGORITHM });
 		auto result = calculator.CalculateChecksumsFromFile(path, source.get_token());
 
 		Assert::AreEqual(L"b745f90ecd2ef998b3f1bb200dd38f9aeb9957a0f316225dabcd4246ff0b5de8", result[BCRYPT_SHA256_ALGORITHM].c_str());
@@ -60,11 +60,11 @@ public:
 
 	TEST_METHOD(CalculateChecksumsAsyncSuccess)
 	{
-		HashLib::Calculator calculator({ BCRYPT_SHA256_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_SHA256_ALGORITHM });
 		std::promise<void> done;
 		bool completeFired = false;
 
-		HashLib::AsyncCallbacks callbacks;
+		TiivisteMattiLib::AsyncCallbacks callbacks;
 
 		callbacks.OnComplete = [&](const std::filesystem::path&, const std::map<std::wstring, std::wstring>& hashes)
 		{
@@ -78,7 +78,7 @@ public:
 			done.set_value();
 		};
 
-		std::vector<std::filesystem::path> paths = { L"..\\..\\..\\HashCalc.props" };
+		std::vector<std::filesystem::path> paths = { L"..\\..\\..\\TiivisteMatti.props" };
 		auto worker = calculator.CalculateChecksumsAsync(paths, callbacks);
 
 		done.get_future().wait();
@@ -88,11 +88,11 @@ public:
 
 	TEST_METHOD(CalculateChecksumsAsyncCancellation)
 	{
-		HashLib::Calculator calculator({ BCRYPT_SHA256_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_SHA256_ALGORITHM });
 		std::promise<void> done;
 		bool completeFired = false;
 
-		HashLib::AsyncCallbacks callbacks;
+		TiivisteMattiLib::AsyncCallbacks callbacks;
 		callbacks.OnComplete = [&](const auto&, const auto&)
 		{ 
 				completeFired = true;
@@ -100,7 +100,7 @@ public:
 
 		callbacks.OnFinished = [&]() { done.set_value(); };
 
-		std::vector<std::filesystem::path> paths = { L"..\\..\\..\\HashCalc.props" };
+		std::vector<std::filesystem::path> paths = { L"..\\..\\..\\TiivisteMatti.props" };
 		auto worker = calculator.CalculateChecksumsAsync(paths, callbacks);
 
 		worker.request_stop();
@@ -111,11 +111,11 @@ public:
 
 	TEST_METHOD(CalculateChecksumsAsyncFileNotFound)
 	{
-		HashLib::Calculator calculator({ BCRYPT_MD5_ALGORITHM });
+		TiivisteMattiLib::Calculator calculator({ BCRYPT_MD5_ALGORITHM });
 		std::promise<void> done;
 		bool errorFired = false;
 
-		HashLib::AsyncCallbacks callbacks;
+		TiivisteMattiLib::AsyncCallbacks callbacks;
 		
 		callbacks.OnError = [&](const auto&, const auto&)
 		{ 

@@ -1,5 +1,5 @@
 #include "PCH.hpp"
-import HashLib;
+import TiivisteMattiLib;
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -10,14 +10,14 @@ public:
 	TEST_METHOD(ToNarrow)
 	{
 		{
-			const std::string result = HashLib::Strings::ToNarrow(L"ABC");
+			const std::string result = TiivisteMattiLib::Strings::ToNarrow(L"ABC");
 			Assert::AreEqual(result.size(), size_t(3));
 			Assert::AreEqual(result[0], 'A');
 			Assert::AreEqual(result[1], 'B');
 			Assert::AreEqual(result[2], 'C');
 		}
 		{
-			const std::vector<uint8_t> result = HashLib::Strings::ToByteArray(L"ABC");
+			const std::vector<uint8_t> result = TiivisteMattiLib::Strings::ToByteArray(L"ABC");
 			Assert::AreEqual(result.size(), size_t(3));
 			Assert::AreEqual(result[0], uint8_t(0x41));
 			Assert::AreEqual(result[1], uint8_t(0x42));
@@ -27,7 +27,7 @@ public:
 
 	TEST_METHOD(ToWide)
 	{
-		const std::wstring result = HashLib::Strings::ToWide("ABC");
+		const std::wstring result = TiivisteMattiLib::Strings::ToWide("ABC");
 		Assert::AreEqual(result.size(), size_t(3));
 		Assert::AreEqual(result[0], L'A');
 		Assert::AreEqual(result[1], L'B');
@@ -37,17 +37,17 @@ public:
 
 	TEST_METHOD(ConvertEmptyStrings)
 	{
-		Assert::AreEqual(size_t(0), HashLib::Strings::ToNarrow(L"").size());
-		Assert::AreEqual(size_t(0), HashLib::Strings::ToWide("").size());
-		Assert::AreEqual(size_t(0), HashLib::Strings::ToByteArray(L"").size());
-		Assert::AreEqual(size_t(0), HashLib::Strings::Split(L"").size());
+		Assert::AreEqual(size_t(0), TiivisteMattiLib::Strings::ToNarrow(L"").size());
+		Assert::AreEqual(size_t(0), TiivisteMattiLib::Strings::ToWide("").size());
+		Assert::AreEqual(size_t(0), TiivisteMattiLib::Strings::ToByteArray(L"").size());
+		Assert::AreEqual(size_t(0), TiivisteMattiLib::Strings::Split(L"").size());
 	}
 
 	TEST_METHOD(Join)
 	{
 		std::vector<std::wstring> elements = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
 		Assert::AreEqual(
-			HashLib::Strings::Join(elements).c_str(), L"hydrogen, helium, lithium & beryllium");
+			TiivisteMattiLib::Strings::Join(elements).c_str(), L"hydrogen, helium, lithium & beryllium");
 	}
 
 	TEST_METHOD(Split)
@@ -55,7 +55,7 @@ public:
 		std::wstring input = L"hydrogen,helium,lithium,beryllium";
 		std::vector<std::wstring> expected = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
 
-		auto result = HashLib::Strings::Split(input);
+		auto result = TiivisteMattiLib::Strings::Split(input);
 
 		Assert::AreEqual(expected.size(), result.size());
 
@@ -68,7 +68,7 @@ public:
 	TEST_METHOD(SplitPaths)
 	{
 		std::wstring input = L"C:\\file1.txt,D:\\folder\\file2.exe";
-		auto result = HashLib::Strings::SplitPaths(input);
+		auto result = TiivisteMattiLib::Strings::SplitPaths(input);
 
 		Assert::AreEqual(size_t(2), result.size());
 		Assert::AreEqual(L"C:\\file1.txt", result[0].c_str());
@@ -77,7 +77,7 @@ public:
 
 	TEST_METHOD(Bytes)
 	{
-		auto result = HashLib::Strings::ToByteArray(L"\xD83D\xDE18", CP_UTF8);
+		auto result = TiivisteMattiLib::Strings::ToByteArray(L"\xD83D\xDE18", CP_UTF8);
 		Assert::AreEqual(result.size(), size_t(4));
 		Assert::AreEqual(result[0], uint8_t(0xF0));
 		Assert::AreEqual(result[1], uint8_t(0x9F));

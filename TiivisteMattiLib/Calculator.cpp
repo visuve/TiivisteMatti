@@ -1,9 +1,9 @@
 module;
 #include "PCH.hpp"
 
-module HashLib;
+module TiivisteMattiLib;
 
-namespace HashLib
+namespace TiivisteMattiLib
 {
 	class Handle
 	{
