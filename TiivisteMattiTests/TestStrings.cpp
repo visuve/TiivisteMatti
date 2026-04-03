@@ -45,9 +45,16 @@ public:
 
 	TEST_METHOD(Join)
 	{
-		std::vector<std::wstring> elements = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
-		Assert::AreEqual(
-			TiivisteMattiLib::Strings::Join(elements).c_str(), L"hydrogen, helium, lithium & beryllium");
+		{
+			std::vector<std::wstring> elements = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
+			Assert::AreEqual(
+				TiivisteMattiLib::Strings::Join(elements, L'|').c_str(), L"hydrogen|helium|lithium|beryllium");
+		}
+		{
+			std::vector<std::wstring> elements = { L"hydrogen", L"helium", L"lithium", L"beryllium" };
+			Assert::AreEqual(
+				TiivisteMattiLib::Strings::Join(elements).c_str(), L"hydrogen, helium, lithium & beryllium");
+		}
 	}
 
 	TEST_METHOD(Split)

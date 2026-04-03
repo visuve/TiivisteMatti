@@ -119,6 +119,13 @@ export namespace TiivisteMattiLib::Strings
 		return result;
 	}
 
+	template<std::ranges::input_range Range, typename C>
+	std::basic_string<C> Join(const Range& range, C character)
+	{
+		auto joined = std::views::join_with(range, character);
+		return std::basic_string<C>(std::from_range, joined);
+	}
+
 	template<typename T, typename C>
 	std::vector<T> Split(std::basic_string_view<C> text, C separator)
 	{

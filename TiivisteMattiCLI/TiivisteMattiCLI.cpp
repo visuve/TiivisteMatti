@@ -126,7 +126,7 @@ int wmain(int argc, wchar_t* argv[])
 
 		if (IsReadableFile(argv[1]) || IsReadableFolder(argv[1]))
 		{
-			std::wcout << L"Path," << TML::Strings::Join(selectedAlgorithms, std::wstring_view(L","), std::wstring_view(L",")) << std::endl;
+			std::wcout << L"Path," << TML::Strings::Join(selectedAlgorithms, L',') << std::endl;
 
 			std::mutex printMutex;
 			std::promise<void> completionPromise;
