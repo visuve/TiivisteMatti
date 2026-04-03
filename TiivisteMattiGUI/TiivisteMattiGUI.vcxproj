@@ -10,6 +10,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>bcrypt.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalManifestDependencies>"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"%(AdditionalManifestDependencies)</AdditionalManifestDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -30,5 +31,8 @@
     <ProjectReference Include="..\TiivisteMattiLib\TiivisteMattiLib.vcxproj">
       <Project>{eaa89ad3-0c3b-4d65-a338-e04c2ef799ce}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="TiivisteMattiGUI.ico" />
   </ItemGroup>
 </Project>

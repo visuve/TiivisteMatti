@@ -531,7 +531,8 @@ namespace TiivisteMatti
 	{
 		std::vector<wchar_t> buffer(0x100000, L'\0');
 
-		OPENFILENAMEW ofn = { sizeof(ofn) };
+		OPENFILENAMEW ofn = { 0 };
+		ofn.lStructSize = sizeof(ofn);
 		ofn.hwndOwner = _window;
 		ofn.lpstrFile = buffer.data();
 		ofn.nMaxFile = static_cast<DWORD>(buffer.size());
@@ -643,10 +644,39 @@ namespace TiivisteMatti
 
 	void MainWindow::HandleAbout() const
 	{
+		TASKDIALOGCONFIG config = { 0 };
+		config.cbSize = sizeof(TASKDIALOGCONFIG);
+		config.hwndParent = _window;
+		config.hInstance = GetModuleHandleW(nullptr);
+		config.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION;
+		config.dwCommonButtons = TDCBF_OK_BUTTON;
+		config.pszWindowTitle = UiStrings.at(IDs::AboutTitle).c_str();
+		config.pszMainInstruction = UiStrings.at(IDs::WindowTitle).c_str();
+		config.pszMainIcon = MAKEINTRESOURCEW(1);
 		const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
 		const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
-		const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
-		MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
+
+		std::wstring content = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
+
+		config.pszContent = content.c_str();
+		config.pfCallback = [](HWND hwnd, UINT msg, WPARAM, LPARAM lParam, LONG_PTR) -> HRESULT
+		{
+			if (msg == TDN_HYPERLINK_CLICKED)
+			{
+				const wchar_t* url = reinterpret_cast<const wchar_t*>(lParam);
+
+				if (!url)
+				{
+					return S_OK;
+				}
+
+				ShellExecuteW(hwnd, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
+			}
+
+			return S_OK;
+		};
+
+		TaskDialogIndirect(&config, nullptr, nullptr, nullptr);
 	}
 
 	int MainWindow::SystemIconIndex(const std::filesystem::path& path, bool isFolder)

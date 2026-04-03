@@ -5,7 +5,7 @@
 #define TIIVISTEMATTI_BUILD 1917
 
 // See .github/actions/msvc.yml - this value should not be set manually
-#define TIIVISTEMATTI_COMMIT_HASH "to be set in a build pipeline"
+#define TIIVISTEMATTI_COMMIT_HASH "to-be-set-in-a-build-pipeline"
 
 #define TIIVISTEMATTI_STRINGIFY_INNER(x) #x
 #define TIIVISTEMATTI_STRINGIFY_OUTER(x) TIIVISTEMATTI_STRINGIFY_INNER(x)

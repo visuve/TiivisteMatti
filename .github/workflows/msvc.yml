@@ -13,7 +13,7 @@ jobs:
     - name: Version
       shell: pwsh
       run: |
-        (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to be set in a build pipeline", "${{ github.sha }}") | Set-Content "Version.h"
+        (Get-Content "Version.h" -Raw).Replace("1917", "${{ github.run_number }}").Replace("to-be-set-in-a-build-pipeline", "${{ github.sha }}") | Set-Content "Version.h"
         (Get-Content "TiivisteMattiInstaller/TiivisteMattiInstaller.wxs" -Raw).Replace("1917", "${{ github.run_number }}") | Set-Content "TiivisteMattiInstaller/TiivisteMattiInstaller.wxs"
 
     - name: Compile
