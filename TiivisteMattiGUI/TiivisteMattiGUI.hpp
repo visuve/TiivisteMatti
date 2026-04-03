@@ -63,31 +63,35 @@ namespace TiivisteMatti
 		static LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
 		LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
 
+		void OnCreate();
 		void CreateMainMenu();
 		void CreateTreeView();
-		void OnCreate();
+		void OnDestroy();
+
+		void ProcessPathsAsync(const std::vector<std::filesystem::path>& paths);
+
 		void OnSize(LPARAM lparam) const;
+		LRESULT OnNotify(WPARAM wparam, LPARAM lparam) const;
 		void OnCommand(WORD id);
 		void OnDropFiles(HDROP drop);
-		void UpdateStatusBar(UINT message);
-		int SystemIconIndex(const std::filesystem::path& path, bool isFolder);
-		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const;
-		void AddFileToTree(const std::filesystem::path& filePath);
-		void InsertErrorNode(HTREEITEM parent, const std::wstring& error) const;
-		void InsertHashNodes(HTREEITEM parent, const std::map<std::wstring, std::wstring>& hashes) const;
-		void FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error);
-		void ProcessPathsAsync(const std::vector<std::filesystem::path>& paths);
-		void HandleBrowse();
-		void HandleAbout() const;
-		void OnDestroy();
-		LRESULT OnNotify(WPARAM wparam, LPARAM lparam) const;
-		void OnTreeViewContextMenu(LPARAM lparam) const;
-		void CopyHashToClipboard(HTREEITEM hItem) const;
-
 		void OnUpdateProgress(LPARAM lparam);
 		void OnUpdateComplete(LPARAM lparam);
 		void OnUpdateError(LPARAM lparam);
+		void UpdateStatusBar(UINT message);
 		void OnFinished();
+
+		void HandleBrowse();
+		void HandleAbout() const;
+
+		int SystemIconIndex(const std::filesystem::path& path, bool isFolder);
+		HTREEITEM InsertTreeItem(const TVINSERTSTRUCTW& is) const;
+		void AddFileToTree(const std::filesystem::path& filePath);
+		void InsertHashNodes(HTREEITEM parent, const std::map<std::wstring, std::wstring>& hashes) const;
+		void InsertErrorNode(HTREEITEM parent, const std::wstring& error) const;
+		void FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error);
+
+		void CopyHashToClipboard(HTREEITEM hItem) const;
+		void OnTreeViewContextMenu(LPARAM lparam) const;
 
 		HWND _window = nullptr;
 		HWND _treeView = nullptr;

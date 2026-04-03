@@ -142,6 +142,11 @@ namespace TiivisteMatti
 			case WM_CREATE:
 				OnCreate();
 				break;
+			case WM_DESTROY:
+			{
+				OnDestroy();
+				break;
+			}
 			case WM_SIZE:
 				OnSize(lparam);
 				break;
@@ -162,11 +167,6 @@ namespace TiivisteMatti
 			case WM_DROPFILES:
 				OnDropFiles(reinterpret_cast<HDROP>(wparam));
 				break;
-			case WM_DESTROY:
-			{
-				OnDestroy();
-				break;
-			}
 			case IDs::Message::UpdateProgress:
 			{
 				OnUpdateProgress(lparam);
@@ -254,6 +254,81 @@ namespace TiivisteMatti
 		DragAcceptFiles(_window, TRUE);
 	}
 
+	void MainWindow::OnDestroy()
+	{
+		DragAcceptFiles(_window, FALSE);
+
+		for (auto& thread : _workerThreads)
+		{
+			if (thread.joinable())
+			{
+				thread.request_stop();
+			}
+		}
+
+		PostQuitMessage(0);
+	}
+
+	void MainWindow::ProcessPathsAsync(const std::vector<std::filesystem::path>& paths)
+	{
+		if (_activeThreads++ == 0)
+		{
+			_startTime = std::chrono::system_clock::now();
+			_completedFiles = 0;
+			_errorFiles = 0;
+			_dotCount = -1;
+		}
+
+		TiivisteMattiLib::AsyncCallbacks callbacks;
+
+		callbacks.OnStart = [this]()
+		{
+			_mutex.lock();
+		};
+
+		callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
+		{
+			auto data = new ProgressData{ path, percentage };
+
+			if (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
+			{
+				delete data;
+			}
+		};
+
+		callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
+		{
+			auto data = new ResultData{ path, hashes, L"" };
+
+			if (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
+			{
+				delete data;
+			}
+		};
+
+		callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
+		{
+			auto data = new ResultData{ path, {}, errorMsg };
+
+			if (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
+			{
+				delete data;
+			}
+		};
+
+		callbacks.OnFinished = [this]()
+		{
+			_mutex.unlock();
+
+			if (--_activeThreads == 0)
+			{
+				PostMessageW(_window, IDs::Message::Finished, 0, 0);
+			}
+		};
+
+		_workerThreads.emplace_back(_calculator.CalculateChecksumsAsync(paths, std::move(callbacks)));
+	}
+
 	void MainWindow::OnSize(LPARAM lparam) const
 	{
 		int width = LOWORD(lparam);
@@ -265,6 +340,55 @@ namespace TiivisteMatti
 
 		int statusHeight = statusRect.bottom - statusRect.top;
 		MoveWindow(_treeView, 0, 0, width, height - statusHeight, TRUE);
+	}
+
+	LRESULT MainWindow::OnNotify(WPARAM wparam, LPARAM lparam) const
+	{
+		LPNMHDR nmhdr = reinterpret_cast<LPNMHDR>(lparam);
+
+		if (nmhdr->idFrom == IDs::TreeView && nmhdr->code == NM_CUSTOMDRAW)
+		{
+			LPNMTVCUSTOMDRAW tvcd = reinterpret_cast<LPNMTVCUSTOMDRAW>(lparam);
+
+			switch (tvcd->nmcd.dwDrawStage)
+			{
+			case CDDS_PREPAINT:
+			{
+				return CDRF_NOTIFYITEMDRAW;
+			}
+			case CDDS_ITEMPREPAINT:
+			{
+				LPARAM index = tvcd->nmcd.lItemlParam;
+
+				switch (index)
+				{
+				case 1: // MD5
+				{
+					tvcd->clrText = RGB(150, 0, 0);
+					return CDRF_NEWFONT;
+				}
+				case 2: // SHA1
+				{
+					tvcd->clrText = RGB(180, 90, 0);
+					return CDRF_NEWFONT;
+				}
+				case 3: // SHA256
+				{
+					tvcd->clrText = RGB(0, 100, 0);
+					return CDRF_NEWFONT;
+				}
+				}
+
+				return CDRF_DODEFAULT;
+			}
+			default:
+			{
+				return CDRF_DODEFAULT;
+			}
+			}
+		}
+
+		return DefWindowProcW(_window, WM_NOTIFY, wparam, lparam);
 	}
 
 	void MainWindow::OnCommand(WORD id)
@@ -304,6 +428,55 @@ namespace TiivisteMatti
 		ProcessPathsAsync(paths);
 	}
 
+	void MainWindow::OnUpdateProgress(LPARAM lparam)
+	{
+		std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
+		auto it = _progressNodes.find(data->FilePath);
+
+		if (_progressNodes.find(data->FilePath) == _progressNodes.end())
+		{
+			AddFileToTree(data->FilePath);
+			UpdateStatusBar(IDs::Message::UpdateProgress);
+		}
+
+		std::wstring text = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(data->Percentage));
+
+		TVITEMW tvi = { 0 };
+		tvi.mask = TVIF_TEXT;
+		tvi.hItem = _progressNodes[data->FilePath];
+		tvi.pszText = text.data();
+
+		SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+	}
+
+	void MainWindow::OnUpdateComplete(LPARAM lparam)
+	{
+		std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+		if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+		{
+			AddFileToTree(data->FilePath); // Failsafe for 0-byte files
+		}
+
+		FinalizeFileNode(data->FilePath, data->Hashes, L"");
+		++_completedFiles;
+		UpdateStatusBar(IDs::Message::UpdateComplete);
+	}
+
+	void MainWindow::OnUpdateError(LPARAM lparam)
+	{
+		std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
+
+		if (_fileNodes.find(data->FilePath) == _fileNodes.end())
+		{
+			AddFileToTree(data->FilePath);
+		}
+
+		FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
+		++_errorFiles;
+		UpdateStatusBar(IDs::Message::UpdateError);
+	}
+
 	void MainWindow::UpdateStatusBar(UINT message)
 	{
 		std::wstring status;
@@ -337,6 +510,63 @@ namespace TiivisteMatti
 			std::make_wformat_args(_completedFiles, _errorFiles, status));
 
 		SendMessageW(_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(text.c_str()));
+	}
+
+	void MainWindow::OnFinished()
+	{
+		_ASSERT(_activeThreads == 0);
+		_workerThreads.clear();
+		UpdateStatusBar(IDs::Message::Finished);
+	}
+
+	void MainWindow::HandleBrowse()
+	{
+		std::vector<wchar_t> buffer(0x100000, L'\0');
+
+		OPENFILENAMEW ofn = { sizeof(ofn) };
+		ofn.hwndOwner = _window;
+		ofn.lpstrFile = buffer.data();
+		ofn.nMaxFile = static_cast<DWORD>(buffer.size());
+		ofn.lpstrFilter = L"All Files\0*.*\0";
+		ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST;
+
+		if (GetOpenFileNameW(&ofn))
+		{
+			const wchar_t* ptr = ofn.lpstrFile;
+			std::filesystem::path root(ptr);
+
+			ptr += root.native().length() + 1;
+
+			std::vector<std::filesystem::path> paths;
+
+			if (*ptr == L'\0')
+			{
+				paths.emplace_back(root);
+			}
+			else
+			{
+				while (*ptr != L'\0')
+				{
+					std::wstring_view fileName(ptr);
+					paths.emplace_back(root / fileName);
+					ptr += fileName.length() + 1;
+				}
+			}
+
+			ProcessPathsAsync(paths);
+		}
+		else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
+		{
+			MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
+		}
+	}
+
+	void MainWindow::HandleAbout() const
+	{
+		const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
+		const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
+		const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
+		MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
 	}
 
 	int MainWindow::SystemIconIndex(const std::filesystem::path& path, bool isFolder)
@@ -465,21 +695,6 @@ namespace TiivisteMatti
 		}
 	}
 
-	void MainWindow::InsertErrorNode(HTREEITEM parent, const std::wstring& error) const
-	{
-		TVINSERTSTRUCTW is = { 0 };
-		is.hParent = parent;
-		is.hInsertAfter = TVI_LAST;
-		is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-		is.item.iImage = I_IMAGENONE;
-		is.item.iSelectedImage = I_IMAGENONE;
-
-		std::wstring errText = std::format(L"{}: {}", UiStrings.at(IDs::StatusError), error);
-		is.item.pszText = errText.data();
-
-		InsertTreeItem(is);
-	}
-
 	void MainWindow::InsertHashNodes(HTREEITEM parent, const std::map<std::wstring, std::wstring>& hashes) const
 	{
 		int index = 0;
@@ -499,6 +714,21 @@ namespace TiivisteMatti
 
 			InsertTreeItem(is);
 		}
+	}
+
+	void MainWindow::InsertErrorNode(HTREEITEM parent, const std::wstring& error) const
+	{
+		TVINSERTSTRUCTW is = { 0 };
+		is.hParent = parent;
+		is.hInsertAfter = TVI_LAST;
+		is.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+		is.item.iImage = I_IMAGENONE;
+		is.item.iSelectedImage = I_IMAGENONE;
+
+		std::wstring errText = std::format(L"{}: {}", UiStrings.at(IDs::StatusError), error);
+		is.item.pszText = errText.data();
+
+		InsertTreeItem(is);
 	}
 
 	void MainWindow::FinalizeFileNode(const std::filesystem::path& filePath, const std::map<std::wstring, std::wstring>& hashes, const std::wstring& error)
@@ -524,178 +754,37 @@ namespace TiivisteMatti
 		}
 	}
 
-	void MainWindow::ProcessPathsAsync(const std::vector<std::filesystem::path>& paths)
+	void MainWindow::CopyHashToClipboard(HTREEITEM hItem) const
 	{
-		if (_activeThreads++ == 0)
+		constexpr int BufferSize = 0x400;
+		wchar_t buffer[BufferSize] = { 0 };
+		TVITEMW tvi = { 0 };
+		tvi.mask = TVIF_TEXT;
+		tvi.hItem = hItem;
+		tvi.pszText = buffer;
+		tvi.cchTextMax = BufferSize;
+		SendMessageW(_treeView, TVM_GETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+
+		std::wstring text(buffer);
+
+		if (!OpenClipboard(_window))
 		{
-			_startTime = std::chrono::system_clock::now();
-			_completedFiles = 0;
-			_errorFiles = 0;
-			_dotCount = -1;
+			return;
 		}
 
-		TiivisteMattiLib::AsyncCallbacks callbacks;
+		EmptyClipboard();
+		size_t byteSize = (text.length() + 1) * sizeof(wchar_t);
+		HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, byteSize);
 
-		callbacks.OnStart = [this]()
+		if (memory != nullptr)
 		{
-			_mutex.lock();
-		};
-
-		callbacks.OnProgress = [hwnd = _window](const std::filesystem::path& path, float percentage)
-		{
-			auto data = new ProgressData{ path, percentage };
-
-			if (!PostMessageW(hwnd, IDs::Message::UpdateProgress, 0, reinterpret_cast<LPARAM>(data)))
-			{
-				delete data;
-			}
-		};
-
-		callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
-		{
-			auto data = new ResultData{ path, hashes, L"" };
-
-			if (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
-			{
-				delete data;
-			}
-		};
-
-		callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
-		{
-			auto data = new ResultData{ path, {}, errorMsg };
-
-			if (!PostMessageW(hwnd, IDs::Message::UpdateError, 0, reinterpret_cast<LPARAM>(data)))
-			{
-				delete data;
-			}
-		};
-
-		callbacks.OnFinished = [this]()
-		{
-			_mutex.unlock();
-
-			if (--_activeThreads == 0)
-			{
-				PostMessageW(_window, IDs::Message::Finished, 0, 0);
-			}
-		};
-
-		_workerThreads.emplace_back(_calculator.CalculateChecksumsAsync(paths, std::move(callbacks)));
-	}
-
-	void MainWindow::HandleBrowse()
-	{
-		std::vector<wchar_t> buffer(0x100000, L'\0');
-
-		OPENFILENAMEW ofn = { sizeof(ofn) };
-		ofn.hwndOwner = _window;
-		ofn.lpstrFile = buffer.data();
-		ofn.nMaxFile = static_cast<DWORD>(buffer.size());
-		ofn.lpstrFilter = L"All Files\0*.*\0";
-		ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST;
-
-		if (GetOpenFileNameW(&ofn))
-		{
-			const wchar_t* ptr = ofn.lpstrFile;
-			std::filesystem::path root(ptr);
-
-			ptr += root.native().length() + 1;
-
-			std::vector<std::filesystem::path> paths;
-
-			if (*ptr == L'\0')
-			{
-				paths.emplace_back(root);
-			}
-			else
-			{
-				while (*ptr != L'\0')
-				{
-					std::wstring_view fileName(ptr);
-					paths.emplace_back(root / fileName);
-					ptr += fileName.length() + 1;
-				}
-			}
-
-			ProcessPathsAsync(paths);
-		}
-		else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
-		{
-			MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
-		}
-	}
-
-	void MainWindow::HandleAbout() const
-	{
-		const std::wstring wideVersion = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_VERSION);
-		const std::wstring wideHash = TiivisteMattiLib::Strings::ToWide(TIIVISTEMATTI_COMMIT_HASH);
-		const std::wstring text = std::vformat(UiStrings.at(IDs::AboutText), std::make_wformat_args(wideVersion, wideHash));
-		MessageBoxW(_window, text.c_str(), UiStrings.at(IDs::AboutTitle).c_str(), MB_OK | MB_ICONINFORMATION);
-	}
-
-	void MainWindow::OnDestroy()
-	{
-		DragAcceptFiles(_window, FALSE);
-
-		for (auto& thread : _workerThreads)
-		{
-			if (thread.joinable())
-			{
-				thread.request_stop();
-			}
+			void* ptr = GlobalLock(memory);
+			std::memcpy(ptr, text.c_str(), byteSize);
+			GlobalUnlock(memory);
+			SetClipboardData(CF_UNICODETEXT, memory);
 		}
 
-		PostQuitMessage(0);
-	}
-
-	LRESULT MainWindow::OnNotify(WPARAM wparam, LPARAM lparam) const
-	{
-		LPNMHDR nmhdr = reinterpret_cast<LPNMHDR>(lparam);
-
-		if (nmhdr->idFrom == IDs::TreeView && nmhdr->code == NM_CUSTOMDRAW)
-		{
-			LPNMTVCUSTOMDRAW tvcd = reinterpret_cast<LPNMTVCUSTOMDRAW>(lparam);
-
-			switch (tvcd->nmcd.dwDrawStage)
-			{
-			case CDDS_PREPAINT:
-			{
-				return CDRF_NOTIFYITEMDRAW;
-			}
-			case CDDS_ITEMPREPAINT:
-			{
-				LPARAM index = tvcd->nmcd.lItemlParam;
-
-				switch (index)
-				{
-				case 1: // MD5
-				{
-					tvcd->clrText = RGB(150, 0, 0);
-					return CDRF_NEWFONT;
-				}
-				case 2: // SHA1
-				{
-					tvcd->clrText = RGB(180, 90, 0);
-					return CDRF_NEWFONT;
-				}
-				case 3: // SHA256
-				{
-					tvcd->clrText = RGB(0, 100, 0);
-					return CDRF_NEWFONT;
-				}
-				}
-
-				return CDRF_DODEFAULT;
-			}
-			default:
-			{
-				return CDRF_DODEFAULT;
-			}
-			}
-		}
-
-		return DefWindowProcW(_window, WM_NOTIFY, wparam, lparam);
+		CloseClipboard();
 	}
 
 	void MainWindow::OnTreeViewContextMenu(LPARAM lparam) const
@@ -738,95 +827,6 @@ namespace TiivisteMatti
 		{
 			CopyHashToClipboard(item);
 		}
-	}
-
-	void MainWindow::CopyHashToClipboard(HTREEITEM hItem) const
-	{
-		constexpr int BufferSize = 0x400;
-		wchar_t buffer[BufferSize] = { 0 };
-		TVITEMW tvi = { 0 };
-		tvi.mask = TVIF_TEXT;
-		tvi.hItem = hItem;
-		tvi.pszText = buffer;
-		tvi.cchTextMax = BufferSize;
-		SendMessageW(_treeView, TVM_GETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
-
-		std::wstring text(buffer);
-
-		if (!OpenClipboard(_window))
-		{
-			return;
-		}
-
-		EmptyClipboard();
-		size_t byteSize = (text.length() + 1) * sizeof(wchar_t);
-		HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, byteSize);
-
-		if (memory != nullptr)
-		{
-			void* ptr = GlobalLock(memory);
-			std::memcpy(ptr, text.c_str(), byteSize);
-			GlobalUnlock(memory);
-			SetClipboardData(CF_UNICODETEXT, memory);
-		}
-
-		CloseClipboard();
-	}
-
-	void MainWindow::OnUpdateProgress(LPARAM lparam)
-	{
-		std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
-		auto it = _progressNodes.find(data->FilePath);
-
-		if (_progressNodes.find(data->FilePath) == _progressNodes.end())
-		{
-			AddFileToTree(data->FilePath);
-			UpdateStatusBar(IDs::Message::UpdateProgress);
-		}
-
-		std::wstring text = std::vformat(UiStrings.at(IDs::TreeCalculating), std::make_wformat_args(data->Percentage));
-
-		TVITEMW tvi = { 0 };
-		tvi.mask = TVIF_TEXT;
-		tvi.hItem = _progressNodes[data->FilePath];
-		tvi.pszText = text.data();
-
-		SendMessageW(_treeView, TVM_SETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
-	}
-
-	void MainWindow::OnUpdateComplete(LPARAM lparam)
-	{
-		std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-		if (_fileNodes.find(data->FilePath) == _fileNodes.end())
-		{
-			AddFileToTree(data->FilePath); // Failsafe for 0-byte files
-		}
-
-		FinalizeFileNode(data->FilePath, data->Hashes, L"");
-		++_completedFiles;
-		UpdateStatusBar(IDs::Message::UpdateComplete);
-	}
-
-	void MainWindow::OnUpdateError(LPARAM lparam)
-	{
-		std::unique_ptr<ResultData> data(reinterpret_cast<ResultData*>(lparam));
-
-		if (_fileNodes.find(data->FilePath) == _fileNodes.end())
-		{
-			AddFileToTree(data->FilePath);
-		}
-
-		FinalizeFileNode(data->FilePath, {}, data->ErrorMessage);
-		++_errorFiles;
-		UpdateStatusBar(IDs::Message::UpdateError);
-	}
-
-	void MainWindow::OnFinished()
-	{
-		_ASSERT(_activeThreads == 0);
-		_workerThreads.clear();
-		UpdateStatusBar(IDs::Message::Finished);
 	}
 }
 
