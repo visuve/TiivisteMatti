@@ -13,6 +13,8 @@ namespace TiivisteMatti
 			MenuFile = IDS_MenuFile,
 			MenuFileBrowse = IDS_MenuFileBrowse,
 			MenuFileExit = IDS_MenuFileExit,
+			MenuExport = IDS_MenuExport,
+			MenuExportCSV = IDS_MenuExportCSV,
 			MenuHelp = IDS_MenuHelp,
 			MenuHelpAbout = IDS_MenuHelpAbout,
 			StatusReady = IDS_StatusReady,
@@ -43,7 +45,8 @@ namespace TiivisteMatti
 		{
 			FileBrowse = 1001,
 			FileExit = 1002,
-			HelpAbout = 1003
+			HelpAbout = 1003,
+			FileExportCSV = 1004
 		};
 
 		enum Control : UINT_PTR
@@ -52,6 +55,8 @@ namespace TiivisteMatti
 			StatusBar = 2002
 		};
 	};
+
+	inline const std::initializer_list<std::wstring> DefaultAlgorithms = { L"MD5", L"SHA1", L"SHA256" };
 
 	class MainWindow
 	{
@@ -81,6 +86,7 @@ namespace TiivisteMatti
 		void OnFinished();
 
 		void HandleBrowse();
+		void HandleExport() const;
 		void HandleAbout() const;
 
 		int SystemIconIndex(const std::filesystem::path& path, bool isFolder);
@@ -108,9 +114,11 @@ namespace TiivisteMatti
 		std::map<std::filesystem::path, HTREEITEM> _fileNodes;
 		std::map<std::filesystem::path, HTREEITEM> _progressNodes;
 
-		TiivisteMattiLib::Calculator _calculator{ {L"MD5", L"SHA1", L"SHA256"} };
-		std::vector<std::jthread> _workerThreads;
+		TiivisteMattiLib::Calculator _calculator{ DefaultAlgorithms };
+		std::vector<std::jthread> _threads;
 		std::atomic<int> _activeThreads{ 0 };
 		std::mutex _mutex;
+
+		std::map<std::filesystem::path, std::map<std::wstring, std::wstring>> _results;
 	};
 }

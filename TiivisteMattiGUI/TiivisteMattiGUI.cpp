@@ -204,15 +204,19 @@ namespace TiivisteMatti
 	{
 		HMENU menu = CreateMenu();
 		HMENU fileMenu = CreatePopupMenu();
+		HMENU exportMenu = CreatePopupMenu();
 		HMENU helpMenu = CreatePopupMenu();
 
 		AppendMenuW(fileMenu, MF_STRING, IDs::FileBrowse, UiStrings.at(IDs::MenuFileBrowse).c_str());
 		AppendMenuW(fileMenu, MF_SEPARATOR, 0, nullptr);
 		AppendMenuW(fileMenu, MF_STRING, IDs::FileExit, UiStrings.at(IDs::MenuFileExit).c_str());
 
+		AppendMenuW(exportMenu, MF_STRING, IDs::FileExportCSV, UiStrings.at(IDs::MenuExportCSV).c_str());
+
 		AppendMenuW(helpMenu, MF_STRING, IDs::HelpAbout, UiStrings.at(IDs::MenuHelpAbout).c_str());
 
 		AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), UiStrings.at(IDs::MenuFile).c_str());
+		AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(exportMenu), UiStrings.at(IDs::MenuExport).c_str());
 		AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(helpMenu), UiStrings.at(IDs::MenuHelp).c_str());
 
 		SetMenu(_window, menu);
@@ -258,7 +262,7 @@ namespace TiivisteMatti
 	{
 		DragAcceptFiles(_window, FALSE);
 
-		for (auto& thread : _workerThreads)
+		for (auto& thread : _threads)
 		{
 			if (thread.joinable())
 			{
@@ -277,6 +281,8 @@ namespace TiivisteMatti
 			_completedFiles = 0;
 			_errorFiles = 0;
 			_dotCount = -1;
+
+			EnableMenuItem(GetMenu(_window), IDs::FileExportCSV, MF_BYCOMMAND | MF_GRAYED);
 		}
 
 		TiivisteMattiLib::AsyncCallbacks callbacks;
@@ -296,14 +302,16 @@ namespace TiivisteMatti
 			}
 		};
 
-		callbacks.OnComplete = [hwnd = _window](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
+		callbacks.OnComplete = [this](const std::filesystem::path& path, const std::map<std::wstring, std::wstring>& hashes)
 		{
 			auto data = new ResultData{ path, hashes, L"" };
 
-			if (!PostMessageW(hwnd, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
+			if (!PostMessageW(_window, IDs::Message::UpdateComplete, 0, reinterpret_cast<LPARAM>(data)))
 			{
 				delete data;
 			}
+
+			_results[path] = hashes;
 		};
 
 		callbacks.OnError = [hwnd = _window](const std::filesystem::path& path, const std::wstring& errorMsg)
@@ -326,7 +334,7 @@ namespace TiivisteMatti
 			}
 		};
 
-		_workerThreads.emplace_back(_calculator.CalculateChecksumsAsync(paths, std::move(callbacks)));
+		_threads.emplace_back(_calculator.CalculateChecksumsAsync(paths, std::move(callbacks)));
 	}
 
 	void MainWindow::OnSize(LPARAM lparam) const
@@ -397,6 +405,9 @@ namespace TiivisteMatti
 		{
 		case IDs::FileBrowse:
 			HandleBrowse();
+			break;
+		case IDs::FileExportCSV:
+			HandleExport();
 			break;
 		case IDs::FileExit:
 			SendMessageW(_window, WM_CLOSE, 0, 0);
@@ -514,8 +525,9 @@ namespace TiivisteMatti
 	void MainWindow::OnFinished()
 	{
 		_ASSERT(_activeThreads == 0);
-		_workerThreads.clear();
+		_threads.clear();
 		UpdateStatusBar(IDs::Message::Finished);
+		EnableMenuItem(GetMenu(_window), IDs::FileExportCSV, MF_BYCOMMAND | MF_ENABLED);
 	}
 
 	void MainWindow::HandleBrowse()
@@ -557,6 +569,69 @@ namespace TiivisteMatti
 		else if (CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
 		{
 			MessageBoxW(_window, UiStrings.at(IDs::ErrorBufferLimit).c_str(), UiStrings.at(IDs::ErrorTitle).c_str(), MB_ICONERROR);
+		}
+	}
+
+	void MainWindow::HandleExport() const
+	{
+		if (_activeThreads || _results.empty())
+		{
+			return;
+		}
+
+		constexpr DWORD BufferSize = 0x800;
+		wchar_t buffer[BufferSize] = { 0 };
+		OPENFILENAMEW ofn = { sizeof(ofn) };
+		ofn.hwndOwner = _window;
+		ofn.lpstrFilter = L"CSV Files (*.csv)\0*.csv\0All Files (*.*)\0*.*\0";
+		ofn.lpstrFile = buffer;
+		ofn.nMaxFile = BufferSize;
+		ofn.lpstrDefExt = L"csv";
+		ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+
+		if (!GetSaveFileNameW(&ofn))
+		{
+			return;
+		}
+
+		TiivisteMattiLib::Handle file(CreateFileW(
+			ofn.lpstrFile,
+			GENERIC_WRITE,
+			0,
+			nullptr,
+			CREATE_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			nullptr));
+
+		if (!file.IsValid())
+		{
+			throw std::system_error(GetLastError(), std::system_category(), "Failed to create export file");
+		}
+
+		DWORD bytesWritten = 0;
+		
+		const wchar_t bom = 0xFEFF;
+		if (!WriteFile(file, &bom, sizeof(wchar_t), &bytesWritten, nullptr))
+		{
+			throw std::system_error(GetLastError(), std::system_category(), "Failed to write BOM to export file");
+		}
+
+		std::wstring data = std::format(L"Path;{}\r\n", TiivisteMattiLib::Strings::Join(DefaultAlgorithms, L','));
+
+		for (const auto [path, hashes] : _results)
+		{
+			const auto hashValues = DefaultAlgorithms | std::views::transform([&hashes](const std::wstring& algo)
+			{
+				auto it = hashes.find(algo);
+				return it != hashes.end() ? it->second : L"Missing?";
+			});
+
+			data += std::format(L"{},{}\r\n", path.native(), TiivisteMattiLib::Strings::Join(hashValues, L','));
+		}
+
+		if (!WriteFile(file, data.c_str(), static_cast<DWORD>(data.length() * sizeof(wchar_t)), &bytesWritten, nullptr))
+		{
+			throw std::system_error(GetLastError(), std::system_category(), "Failed to write data to export file");
 		}
 	}
 
