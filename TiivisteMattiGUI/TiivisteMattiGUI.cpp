@@ -431,7 +431,6 @@ namespace TiivisteMatti
 	void MainWindow::OnUpdateProgress(LPARAM lparam)
 	{
 		std::unique_ptr<ProgressData> data(reinterpret_cast<ProgressData*>(lparam));
-		auto it = _progressNodes.find(data->FilePath);
 
 		if (_progressNodes.find(data->FilePath) == _progressNodes.end())
 		{
