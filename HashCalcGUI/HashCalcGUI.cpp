@@ -26,7 +26,9 @@ namespace HashCalcGUI
 			AboutText = IDS_AboutText,
 			BrowseTitle = IDS_BrowseTitle,
 			ErrorBufferLimit = IDS_ErrorBufferLimit,
-			ErrorTitle = IDS_ErrorTitle
+			ErrorTitle = IDS_ErrorTitle,
+			CtxMenuCopy = IDS_CtxMenuCopy,
+			LastString
 		};
 
 		enum Message : UINT
@@ -83,7 +85,7 @@ namespace HashCalcGUI
 
 	void InitializeStrings()
 	{
-		for (UINT id = IDS_MenuFile; id <= IDS_ErrorTitle; ++id)
+		for (UINT id = IDs::MenuFile; id < IDs::LastString; ++id)
 		{
 			UiStrings[id] = LoadResourceString(id);
 		}
@@ -216,6 +218,14 @@ namespace HashCalcGUI
 				case WM_NOTIFY:
 					return OnNotify(wparam, lparam);
 					break;
+				case WM_CONTEXTMENU:
+				{
+					if (reinterpret_cast<HWND>(wparam) == _treeView)
+					{
+						OnTreeViewContextMenu(lparam);
+					}
+					break;
+				}
 				case WM_COMMAND:
 					OnCommand(LOWORD(wparam));
 					break;
@@ -767,6 +777,81 @@ namespace HashCalcGUI
 			}
 
 			return DefWindowProcW(_window, WM_NOTIFY, wparam, lparam);
+		}
+
+		void OnTreeViewContextMenu(LPARAM lparam)
+		{
+			POINT pt = { static_cast<short>(LOWORD(lparam)), static_cast<short>(HIWORD(lparam)) };
+
+			POINT clientPt = pt;
+			ScreenToClient(_treeView, &clientPt);
+
+			TVHITTESTINFO ht = { 0 };
+			ht.pt = clientPt;
+			HTREEITEM item = reinterpret_cast<HTREEITEM>(SendMessageW(_treeView, TVM_HITTEST, 0, reinterpret_cast<LPARAM>(&ht)));
+
+			if (!item)
+			{
+				return;
+			}
+
+			TVITEMW tvi = { 0 };
+			tvi.mask = TVIF_PARAM;
+			tvi.hItem = item;
+			SendMessageW(_treeView, TVM_GETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+
+			// Check if the clicked item is a hash result (lParam is 1, 2, or 3)
+			if (tvi.lParam < 1 || tvi.lParam > 3)
+			{
+				return;
+			}
+
+			// Explicitly select the right-clicked item to prevent focus jumping
+			SendMessageW(_treeView, TVM_SELECTITEM, TVGN_CARET, reinterpret_cast<LPARAM>(item));
+
+			HMENU ctxMenu = CreatePopupMenu();
+			AppendMenuW(ctxMenu, MF_STRING, 1, UiStrings.at(IDs::CtxMenuCopy).c_str());
+
+			int cmd = TrackPopupMenu(ctxMenu, TPM_RETURNCMD | TPM_NONOTIFY, pt.x, pt.y, 0, _window, nullptr);
+			DestroyMenu(ctxMenu);
+
+			if (cmd == 1)
+			{
+				CopyHashToClipboard(item);
+			}
+		}
+
+		void CopyHashToClipboard(HTREEITEM hItem)
+		{
+			constexpr int BufferSize = 0x400;
+			wchar_t buffer[BufferSize] = { 0 };
+			TVITEMW tvi = { 0 };
+			tvi.mask = TVIF_TEXT;
+			tvi.hItem = hItem;
+			tvi.pszText = buffer;
+			tvi.cchTextMax = BufferSize;
+			SendMessageW(_treeView, TVM_GETITEMW, 0, reinterpret_cast<LPARAM>(&tvi));
+
+			std::wstring text(buffer);
+
+			if (!OpenClipboard(_window))
+			{
+				return;
+			}
+
+			EmptyClipboard();
+			size_t byteSize = (text.length() + 1) * sizeof(wchar_t);
+			HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, byteSize);
+
+			if (memory != nullptr)
+			{
+				void* ptr = GlobalLock(memory);
+				std::memcpy(ptr, text.c_str(), byteSize);
+				GlobalUnlock(memory);
+				SetClipboardData(CF_UNICODETEXT, memory);
+			}
+
+			CloseClipboard();
 		}
 	};
 }

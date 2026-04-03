@@ -17,3 +17,4 @@
 #define IDS_BrowseTitle      115
 #define IDS_ErrorBufferLimit 116
 #define IDS_ErrorTitle       117
+#define IDS_CtxMenuCopy      118
